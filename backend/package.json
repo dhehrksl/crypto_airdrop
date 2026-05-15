@@ -1,0 +1,35 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "axios": "^1.7.9",
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "expo-auth-session": "^55.0.16",
+    "expo-constants": "^55.0.16",
+    "expo-crypto": "^55.0.15",
+    "expo-device": "^55.0.17",
+    "expo-random": "^14.0.1",
+    "expo-server-sdk": "^6.1.0",
+    "expo-web-browser": "^55.0.16",
+    "express": "^5.2.1",
+    "google-auth-library": "^10.6.2",
+    "jsonwebtoken": "^9.0.3",
+    "localtunnel": "^2.0.2",
+    "mongoose": "^8.8.0",
+    "node-cron": "^3.0.3",
+    "passport": "^0.7.0",
+    "passport-google-oauth20": "^2.0.0",
+    "rss-parser": "^3.13.0"
+  }
+}
