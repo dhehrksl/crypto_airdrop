@@ -1,77 +1,368 @@
 # 진행 보고서 및 프로젝트 아키텍처
 
-## 현재 상태
-이 프로젝트는 사용자가 암호화폐 에어드랍 및 뉴스 목록을 볼 수 있는 기능적 상태입니다. 초기 개발 단계와 상당한 리팩토링 과정을 완료했으며, 새로운 기능들이 성공적으로 통합되었습니다.
+> 최종 갱신: 2026-05-17
+> 본 문서는 이 시점까지의 모든 설계 결정·코드 변경·법적 검토 결과를 종합합니다.
 
-- **백엔드:** 서버는 MongoDB 데이터베이스에서 데이터를 제공하며 작동 중입니다. 시장 데이터 프록시 API가 추가되었습니다.
-- **프론트엔드:** 모바일 애플리케이션이 에어드랍 및 뉴스 데이터를 성공적으로 가져와 표시합니다. 사용자 인증(Google 소셜 로그인 포함), 실시간 가격 정보 표시, 광고 통합 등의 기능이 정상 작동합니다.
-- **데이터 스크래핑:** 스크래퍼를 수동으로 실행하여 다양한 RSS 피드에서 에어드랍 및 뉴스 데이터로 데이터베이스를 채울 수 있습니다. 확정 에어드랍 데이터 시딩 스크립트도 업데이트되었습니다.
+---
 
-## 구현된 핵심 기능
-- **사용자 인증:** 이메일/비밀번호 기반 및 **Google 소셜 로그인** 기능을 포함한 사용자 인증 시스템.
-- **에어드랍 및 뉴스 표시:** 에어드랍과 뉴스를 나열하는 별도의 화면. 데이터는 백엔드 API에서 가져옵니다.
-- **실시간 시장 가격 데이터:** 확정 에어드랍 상세 페이지에서 토큰 티커를 기반으로 실시간 가격 및 24시간 변동률 표시.
-- **상세 보기:** 사용자는 에어드랍이나 뉴스 항목을 탭하여 요약 및 원본 소스 링크가 포함된 상세 보기를 볼 수 있습니다.
-- **푸시 알림:** 백엔드에 푸시 알림 전송 로직이 존재하지만, 완전히 테스트되거나 통합되지는 않았습니다.
-- **인앱 브라우저 (In-App Browser):** 참여 링크 클릭 시 외부 브라우저 이탈 없이 앱 내부에서 웹 뷰를 띄워 체류 시간 확보.
-- **하단 배너 광고 (Banner) & 피드 네이티브 광고 (Native):** 앱 내 광고 컴포넌트가 성공적으로 통합되었습니다.
-- **데이터 스크래핑 및 분류:** 스크립트가 15개 이상의 다양한 RSS 피드에서 데이터를 가져오고, 휴리스틱(키워드 기반 점수)을 사용하여 항목을 "에어드랍" 또는 "뉴스"로 분류합니다.
+## 1. 프로젝트 개요
 
-## 프로젝트 아키텍처
+암호화폐 에어드랍 + 뉴스 정보 제공 모바일 앱(Expo / React Native + Node.js / Express + MongoDB). Google Play 출시 + AdMob 광고 수익 모델을 목표로 합니다.
 
-### 백엔드 (`/backend`)
-백엔드는 Express 프레임워크를 사용하는 Node.js 애플리케이션입니다.
+**현재 상태**: 코드 측 법적 위험 대부분 처리 완료, 자체 큐레이션 + RSS 기반 운영 가능 상태. 외부 작업(처리방침 호스팅, 변호사 검토, 백엔드 HTTPS 등) 일부 미완.
 
-- **`server.js`**: 메인 진입점. Express 앱을 초기화하고, MongoDB에 연결하며, API 라우트를 등록합니다.
-- **`/models`**: `Airdrop.js`, `News.js`, `User.js`, `GuaranteedAirdrop.js`에 대한 Mongoose 스키마를 포함하며 데이터 구조를 정의합니다.
-- **`/routes`**: API 엔드포인트를 정의합니다. 로직은 컨트롤러로 분리되어 있습니다.
-  - `airdrops.js`: 에어드랍 및 뉴스 데이터 가져오기 라우트(`/api/airdrops`)를 처리합니다.
-  - `auth.js`: 사용자 등록, 로그인, Google 소셜 로그인 라우트(`/api/auth`)를 처리합니다.
-  - `market.js`: 외부 코인 마켓 데이터(예: CoinGecko)를 가져오기 위한 프록시 라우트(`/api/market`).
-- **`/controllers`**: 각 라우트에 대한 비즈니스 로직을 포함합니다.
-  - `airdropController.js`: 에어드랍/뉴스 데이터 가져오기 및 필터링 로직.
-  - `authController.js`: 사용자 인증 로직.
-  - `marketController.js`: 코인 시장 데이터 처리 로직.
-- **`/src/services`**: 서비스 수준 로직을 포함합니다.
-  - `scraper.js`: RSS 피드에서 데이터를 가져와 데이터베이스에 저장하는 핵심 스크래퍼 서비스.
-- **`/scripts`**: 스크레이퍼 실행, 데이터베이스 초기화, **확정 에어드랍 데이터 시딩** 등 독립적인 유틸리티 스크립트를 포함합니다.
+**DB 현황 (2026-05-17 기준)**:
+- Airdrop: 3개 (RSS+AI 검증된 actionable 항목)
+- News: 170개 (전부 한국어로 번역됨)
+- Submission: 0개 (사용자 제보 대기 자리)
 
-### 프론트엔드 (`/frontend`)
-프론트엔드는 Expo로 구축된 리액트 네이티브 애플리케이션입니다.
+---
 
-- **`/screens`**: 앱의 메인 화면 컴포넌트를 포함합니다.
-  - `HomeScreen.js`: 에어드랍 목록을 표시합니다.
-  - `NewsScreen.js`: 뉴스 기사 목록을 표시합니다.
-  - `DetailScreen.js`: 선택된 에어드랍 또는 뉴스 항목의 세부 정보를 표시하는 일반 화면. **실시간 가격 데이터 표시 기능 추가.**
-  - `LoginScreen.js`, `RegisterScreen.js`: 사용자 인증 화면.
-  - `WebViewScreen.js`: 외부 링크의 웹 콘텐츠를 표시하는 간단한 화면.
-  - `GuaranteedScreen.js`: 확정 에어드랍 목록을 표시합니다.
-- **`/components`**: 여러 화면에서 사용되는 재사용 가능한 UI 컴포넌트를 포함합니다. **`BannerAdComponent.js`, `NativeAdView.js` 통합.**
-- **`/services`**: 애플리케이션의 서비스 계층을 포함합니다.
-  - `api.js`: `axios`를 사용하는 모든 백엔드 API 호출 및 **시장 데이터 API 호출**을 위한 중앙 집중식 모듈.
-- **`/hooks`**: 상태 저장 로직을 캡슐화하고 재사용하기 위한 커스텀 리액트 훅을 포함합니다.
-  - `useAirdrops.js`: 에어드랍 데이터에 대한 가져오기, 상태(로딩, 새로고침), 정렬을 관리합니다.
-  - `useNews.js`: 뉴스 데이터에 대한 가져오기 및 상태를 관리합니다.
-  - `useGuaranteedAirdrops.js`: 확정 에어드랍 데이터를 관리합니다.
-- **`/context`**: 전역 상태를 관리합니다.
-  - `AuthContext.js`: 앱 전체의 사용자 인증 상태를 처리합니다. **Google 소셜 로그인 로직 통합.**
+## 2. 이번 세션의 핵심 변경 내역
 
-## 다음 단계 / 향후 개선 사항
-- **AI 통합:**
-  - 원래 Gemini API 통합에 문제가 있었습니다. 클라이언트 초기화를 디버깅해야 합니다.
-  - 문제가 해결되면, 현재의 휴리스틱 모델을 대체하여 더 정확한 분류 및 요약을 위해 AI를 다시 도입할 수 있습니다.
-- **설정 관리:**
-  - 프론트엔드에서 `API_BASE_URL` 관리를 개선합니다(예: Expo의 환경 변수 사용).
-- **푸시 알림 고도화:**
-  - 푸시 알림 전송 로직의 테스트 및 프론트엔드와의 완전한 통합.
-- **UI/UX 개선:**
-  - 앱 전반에 걸친 UI/UX 개선 및 애니메이션 추가.
+### 2.1. 데이터 수집·분류 이슈 진단 및 개선
+- **문제**: 뉴스 양 부족(휴리스틱 SKIP 임계값으로 158개 버려짐), 에어드랍 탭에 뉴스성 기사 혼입(이더파이/웜홀 사례)
+- **수정**:
+  - 휴리스틱 `SKIP_THRESHOLD: 5 → 0`
+  - `NEGATIVE_PATTERNS` 축소 (lawsuit/hack/SEC/court 등 일반 뉴스 단어 제거, 광고/노이즈만 거름)
+  - AI 프롬프트 강화: "참여 가능한 진행 중/예정 캠페인"만 `is_airdrop=true`
+  - 과거 사건 분석·가격 변동·랭킹·추측 기사는 무조건 News
+  - 이중 저장 방지 (Airdrop 저장 시 같은 unique_hash의 News 삭제 + 반대도)
 
-## 주요 문제 및 해결 과정 요약
-이 프로젝트를 진행하며 여러 기술적 난관에 직면했으나, 성공적으로 해결했습니다.
+### 2.2. 한국어 번역 전면 적용
+- RSS 모든 항목을 AI 배치(Gemini 2.5 Flash)에 보내 분류 + 번역
+- 기존 영문 News 158개를 일괄 한국어로 마이그레이션 (`scripts/dev/translate_existing_news.js`)
+- 결과: News 170개 전부 한국어 제목·요약
 
--   **프론트엔드 의존성 불일치 문제:** `expo` 및 `react-native` 버전 충돌로 인해 `ExpoCryptoAES` 네이티브 모듈 및 `@react-native-community/cli-server-api` 패키지 누락 오류가 발생했습니다. 이는 `npm install`과 `npx expo install --fix`의 조합을 통해 종속성 버전을 Expo SDK에 맞게 강제 조정하여 해결했습니다.
--   **`app.json` `scheme` 누락:** Google 소셜 로그인 후 리디렉션 시 앱이 충돌하는 문제를 해결하기 위해 `frontend/app.json`에 `scheme` 속성을 추가했습니다.
--   **`AuthContext` 참조 오류:** `HomeScreen.js` 파일에서 `AuthContext` import 구문이 누락되어 발생한 `ReferenceError`를 수정했습니다.
--   **광고 컴포넌트 참조 오류:** `HomeScreen.js`와 `NewsScreen.js`에서 `BannerAdComponent`와 `NativeAdView` 컴포넌트의 import가 누락된 문제를 해결했습니다. 또한, 존재하지 않는 `FullNativeAd` 컴포넌트 사용을 `NativeAdView`로 변경하여 오류를 방지했습니다.
--   **`DetailScreen.js` 문법 오류:** `airdrop.tasks.join()` 구문에서 줄바꿈 문자로 인해 발생한 `Unterminated string constant` 오류를 수정했습니다.
+### 2.3. 뉴스 보관 정책
+- 3일 retention — `pruneOldNews()`가 매 스크래퍼 실행 시 오래된 항목 자동 삭제
+- 기본 표시 limit: 뉴스 50개, 에어드랍 100개
+
+### 2.4. 확정 에어드랍 탭 제거
+- `GuaranteedAirdrop` 모델·라우트·컨트롤러·시드·프론트 화면·훅·API 함수 일체 제거
+- `userController.js`에서 GuaranteedAirdrop 참조 정리
+- MongoDB의 `guaranteedairdrops` 컬렉션 drop
+- 탭 아이콘과 라우트도 `App.js`에서 제거
+
+### 2.5. 뉴스 탭 UI 개선
+- `NewsDetailScreen` 신규 — 뉴스 전용 깔끔한 기사 뷰 (신뢰점수·참여 버튼 없음)
+- `NewsScreen` → `Detail` 대신 `NewsDetail`로 navigate
+
+### 2.6. 캘린더 연동 개선
+- 하드코딩 IP 제거, `api.js` 통일 사용
+- 도트 색상 구분: 빨강(3일 내 마감) / 초록(공식 확정) / 보라(기타)
+- 항목 누르면 `Detail`로 이동
+- 뉴스는 자동 제외(`type=airdrops`로만 조회)
+
+### 2.7. airdrops.io 통합 → 완전 제거 (법적 위험)
+- 초기: 메인 페이지 + 디테일 페이지 스크래핑으로 진행 중 에어드랍 35~39개 수집
+- 정규식으로 마감일 추가 추출 (3개 → 10개로 증가)
+- **이후 ToS 검토에서 명시적 상업적 사용 금지 확인**:
+  ```
+  "personal, non-commercial transitory viewing only"
+  "use the materials for any commercial purpose ... is prohibited"
+  "transfer the materials to another person or 'mirror' the materials ... is prohibited"
+  ```
+- 광고 수익 모델 출시와 충돌 → **전면 제거**
+  - `airdropsIoScraper.js` 파일 삭제
+  - `scraper.js`에서 호출 제거
+  - DB의 `source: 'airdrops.io'` 항목 35개 삭제
+
+### 2.8. 자체 큐레이션 + 사용자 제보 시스템 구축
+airdrops.io 제거를 보완하기 위한 합법적 대안:
+- **`Submission` 모델**: 사용자 제보 (pending → approved/rejected)
+- **사용자 제보 폼**: `SubmitAirdropScreen` — 제목/설명/링크/카테고리/체인/마감일 입력
+- **관리자 화면**: `AdminScreen` — 대기 제보 검토(승인/거절) + 직접 에어드랍 입력 (탭 분리)
+- **권한 모델**: `User.isAdmin` Boolean + `adminMiddleware`
+- 승인된 제보는 `Airdrop` 컬렉션에 `source: ['curated']`로 게시 (`trust_score: 75`)
+
+### 2.9. 법적 위험 대응 (8개 영역)
+| 위험 | 처리 |
+|---|---|
+| 개인정보 처리 동의·표시 | `docs/privacy-policy.md` + 앱 내 `PolicyScreen` |
+| 이용약관 | `docs/terms-of-service.md` + 앱 내 표시 |
+| 회원 탈퇴·데이터 삭제 | `DELETE /api/user/account` + UserScreen 버튼 |
+| 면책 문구 | `DisclaimerGate` (첫 실행) + `DetailScreen`/`NewsDetailScreen` footer |
+| 푸시 광고성 표현 | "🚀 새로운 고신뢰 에어드랍!" → 중립적 문구로 변경 |
+| "신뢰 점수" 투자권유 오인 | "AI 매칭도"로 라벨 변경 (DB 필드명은 trust_score 유지) |
+| AdMob 정책 | 광고 영역 "광고" 라벨 표시 + `admobConfig.js` 가이드 |
+| Data Safety 신고 | `docs/data-safety.md` 양식 입력 가이드 |
+
+### 2.10. Express 5 라우팅 이슈 우회
+- `routes/user.js` 내 `router.delete('/me', ...)` 등 정적 path가 라우터 stack에는 등록되나 실제 요청 매칭 실패
+- 원인 추정: Express 5의 path-to-regexp v8 호환성 + 좀비 프로세스 영향
+- 해결: 신규 엔드포인트는 `server.js`에 `app.method(...)`로 직접 등록
+- 결과: 모든 엔드포인트가 정상 동작 (인증 없음 시 401, 인증 있음 시 200)
+
+---
+
+## 3. 현재 아키텍처
+
+### 3.1. 백엔드 (`/backend`)
+Node.js + Express 5 + MongoDB(Mongoose). 매시간 cron으로 스크래퍼 자동 실행.
+
+```
+backend/
+├── server.js                    # 메인 — Express 부팅, 신규 라우트 직접 등록, cron 스케줄
+├── config/
+│   └── passport-setup.js        # Google OAuth 설정
+├── controllers/
+│   ├── airdropController.js     # /api/airdrops 조회 (type=airdrops/news, sort, limit)
+│   ├── authController.js        # 회원가입/로그인/Google 로그인 (isAdmin 응답 포함)
+│   ├── userController.js        # 참여 표시, 계정 삭제
+│   ├── marketController.js      # CoinGecko 가격 프록시
+│   ├── submissionController.js  # 사용자 제보 + 어드민 승인/거절
+│   └── adminAirdropController.js # 어드민 직접 입력/수정/삭제
+├── middleware/
+│   ├── authMiddleware.js        # JWT 검증
+│   └── adminMiddleware.js       # isAdmin 검증 (인증 미들웨어 다음에 사용)
+├── models/
+│   ├── Airdrop.js               # 에어드랍 (source, category, chain, trust_score, end_date 등)
+│   ├── News.js                  # 뉴스 (3일 retention)
+│   ├── User.js                  # 사용자 (isAdmin 필드 추가)
+│   └── Submission.js            # 사용자 제보 (pending/approved/rejected)
+├── routes/
+│   ├── airdrops.js              # GET /api/airdrops, /:id
+│   ├── auth.js                  # /api/auth/{register,login,google/token-signin}
+│   ├── user.js                  # /api/user/airdrops/* (참여 관리)
+│   └── market.js                # /api/market/price
+├── src/services/
+│   └── scraper.js               # RSS 17개 소스 → AI 분류·번역 → DB 저장
+└── scripts/
+    ├── scraper/run.js           # npm run scraper:once
+    └── dev/
+        ├── test_end_date_extract.js
+        ├── reclassify_news_in_airdrops.js  # 오분류 cleanup
+        └── translate_existing_news.js       # 영문 뉴스 일괄 번역
+```
+
+### 3.2. 프론트엔드 (`/frontend`)
+Expo + React Native + Navigation v6 (Stack + BottomTabs).
+
+```
+frontend/
+├── App.js                       # AuthProvider → DisclaimerGate → AppNav
+├── src/
+│   ├── components/
+│   │   ├── DisclaimerGate.js    # 첫 실행 면책 동의 (AsyncStorage 저장)
+│   │   ├── BannerAdComponent.js # 광고 영역 placeholder (AdMob SDK 연결 가이드)
+│   │   └── NativeAdView.js      # 네이티브 광고 placeholder ("광고" 라벨)
+│   ├── constants/
+│   │   └── policies.js          # 처리방침·약관·면책 문구 텍스트
+│   ├── context/
+│   │   └── AuthContext.js       # JWT + userInfo (isAdmin 포함)
+│   ├── hooks/
+│   │   ├── useAirdrops.js
+│   │   ├── useNews.js
+│   │   └── useMyAirdrops.js
+│   ├── screens/
+│   │   ├── HomeScreen.js        # 에어드랍 목록 (카테고리 태그, 마감 임박 표시)
+│   │   ├── NewsScreen.js        # 뉴스 목록 (NewsDetail로 이동)
+│   │   ├── NewsDetailScreen.js  # 뉴스 전용 깔끔한 기사 뷰
+│   │   ├── DetailScreen.js      # 에어드랍 디테일 ("AI 매칭도" + 면책 footer)
+│   │   ├── CalendarScreen.js    # 마감일 도트 표시 (3가지 색상 구분)
+│   │   ├── UserScreen.js        # 내 정보 + 제보·관리자·정책·탈퇴 메뉴
+│   │   ├── LoginScreen.js
+│   │   ├── RegisterScreen.js
+│   │   ├── WebViewScreen.js
+│   │   ├── SubmitAirdropScreen.js  # 사용자 제보 폼
+│   │   ├── AdminScreen.js       # 관리자 — 대기 제보 검토 + 직접 입력
+│   │   └── PolicyScreen.js      # 처리방침/약관 표시
+│   └── services/
+│       ├── api.js               # 모든 API 호출 (제보·어드민 함수 추가)
+│       └── admobConfig.js       # AdMob 정책 준수 설정 헬퍼
+```
+
+---
+
+## 4. API 엔드포인트 전체 목록
+
+### 4.1. 공개
+| 메서드 | 경로 | 설명 |
+|---|---|---|
+| POST | `/api/auth/register` | 이메일 가입 |
+| POST | `/api/auth/login` | 이메일 로그인 (응답에 `user.isAdmin`) |
+| POST | `/api/auth/google/token-signin` | Google ID 토큰 검증 후 로그인 |
+| GET | `/api/airdrops` | 에어드랍/뉴스 목록 (`type=airdrops\|news`, `sort`, `limit`) |
+| GET | `/api/airdrops/:id` | 단건 조회 |
+| GET | `/api/market/price?coinId=...` | CoinGecko 가격 프록시 |
+| GET | `/api/scraper/status` | 스크래퍼 상태 |
+| POST | `/api/scraper/run` | 스크래퍼 수동 트리거 (SCRAPER_ADMIN_TOKEN) |
+| POST | `/api/users/push-token` | 푸시 토큰 등록 |
+
+### 4.2. 사용자 인증 필요
+| 메서드 | 경로 | 설명 |
+|---|---|---|
+| GET | `/api/user/airdrops/participated` | 내가 참여 표시한 에어드랍 |
+| POST | `/api/user/airdrops/:id/participate` | 참여 표시 |
+| DELETE | `/api/user/airdrops/:id/participate` | 참여 표시 해제 |
+| DELETE | `/api/user/account` | **회원 탈퇴 + 데이터 삭제** |
+| POST | `/api/submissions` | **에어드랍 제보** |
+| GET | `/api/submissions/mine` | 내 제보 목록 |
+
+### 4.3. 관리자 전용 (isAdmin=true)
+| 메서드 | 경로 | 설명 |
+|---|---|---|
+| GET | `/api/admin/submissions?status=pending` | 제보 검토 목록 |
+| POST | `/api/admin/submissions/:id/approve` | 제보 승인 → Airdrop으로 게시 |
+| POST | `/api/admin/submissions/:id/reject` | 제보 거절 |
+| POST | `/api/admin/airdrops` | 어드민 직접 에어드랍 입력 |
+| PUT | `/api/admin/airdrops/:id` | 수정 |
+| DELETE | `/api/admin/airdrops/:id` | 삭제 |
+
+---
+
+## 5. 데이터 흐름
+
+### 5.1. RSS → Airdrop / News
+```
+[RSS 17개 소스] → fetchRealData() (소스당 15개)
+       ↓ (NEGATIVE 패턴 매칭 시 SKIP)
+[AI 배치 10개씩] → Gemini 2.5 Flash → 분류 + 한국어 번역
+       ↓
+   is_airdrop?
+   ├─ true  → Airdrop 컬렉션 (trust_score, end_date 포함)
+   └─ false → News 컬렉션
+       ↓ (cron 매시간)
+   3일 지난 News → pruneOldNews() 자동 삭제
+```
+
+### 5.2. 사용자 제보 → 공개
+```
+사용자가 SubmitAirdropScreen에서 제출
+       ↓ POST /api/submissions
+[Submission status='pending']
+       ↓ AdminScreen에서 승인
+       ↓ POST /api/admin/submissions/:id/approve
+[Airdrop source='curated', trust_score=75, is_confirmed=true]
+       ↓ HomeScreen에 즉시 노출
+```
+
+### 5.3. 어드민 직접 입력 → 즉시 공개
+```
+AdminScreen "직접 추가" 탭
+       ↓ POST /api/admin/airdrops
+[Airdrop source='curated']
+       ↓
+HomeScreen / CalendarScreen에 즉시 노출
+```
+
+---
+
+## 6. 정책/법무 문서 자산
+
+| 파일 | 용도 |
+|---|---|
+| `docs/privacy-policy.md` | 한국어 처리방침 — 호스팅 후 Play Console URL로 등록 |
+| `docs/terms-of-service.md` | 이용약관 |
+| `docs/data-safety.md` | Play Console Data Safety 양식 입력 가이드 |
+| `docs/launch-checklist.md` | 출시 전 체크리스트 (외부 작업 목록) |
+| `frontend/src/constants/policies.js` | 앱 내 표시용 정책 텍스트 + 면책 문구 상수 |
+
+---
+
+## 7. 법적 검토 결과 요약
+
+### 7.1. ✅ 처리된 위험
+- 데이터 출처 ToS 위반 (airdrops.io 제거)
+- 개인정보 동의 부재 (처리방침 + 면책 게이트)
+- 데이터 삭제 권리 미보장 (회원 탈퇴 기능)
+- 투자권유 오인 ("AI 매칭도", 면책 footer, 면책 게이트)
+- 광고 표시 명확성 (광고 라벨)
+
+### 7.2. ⚠️ 여전히 남은 외부 작업
+1. **변호사 검토** (권장) — 가상자산 광고법, 투자권유 해석 영역
+2. **처리방침 호스팅** — `docs/privacy-policy.md`의 `[출시 전 채워주세요]` 채우고 GitHub Pages 등에 공개 URL
+3. **JWT_SECRET 교체** — `.env`에 운영용 강력 랜덤 문자열로
+4. **SCRAPER_ADMIN_TOKEN 설정** — 외부 트리거 차단
+5. **백엔드 HTTPS 배포** — 현재 HTTP라 토큰 평문 전송 위험
+6. **AdMob SDK 실제 통합** — `react-native-google-mobile-ads` 설치 + 광고 단위 ID
+7. **AdMob 콘솔 차단 카테고리** — 도박/암호화폐 거래소/성인
+8. **Play Console Data Safety** — `docs/data-safety.md` 입력
+9. **RSS 매체별 ToS 확인** — CoinDesk/CoinTelegraph 등의 한국어 번역 재게시 허용 여부
+10. **사업자등록 + 통신판매업 신고 검토** — 광고 수익 발생 시 (세무사 영역)
+
+### 7.3. 검토된 외부 데이터 소스 매트릭스
+| 소스 | 무료 | 상업적 OK | 에어드랍 데이터 |
+|---|---|---|---|
+| airdrops.io | ⭕ | ✗ (ToS 위반) | ⭕ → 제거됨 |
+| CoinGecko Demo | ⭕ 10K/월 | ✗ (비상업) | ✗ |
+| CoinMarketCap Basic | ⭕ 10K/월 | △ | ✗ |
+| CoinMarketCap Standard | ✗ $79/월 | ⭕ | ⭕ |
+| CryptoCompare/CoinDesk | ✗ (2026-05 종료) | ✗ | ✗ |
+| DefiLlama | ⭕ | ⭕ | ✗ (없음) |
+| NewsData.io | ⭕ 200/일 | ⭕ | ✗ |
+| RSS (현재 사용 중) | ⭕ | 매체별 | ✗ |
+| **자체 큐레이션** | ⭕ | ⭕ | ⭕ (운영 필요) |
+
+**결론**: 무료 + 상업적 OK + 에어드랍 전용 = 사실상 자체 큐레이션이 유일. 합법 모델로 채택.
+
+---
+
+## 8. 운영 가이드
+
+### 8.1. 본인 계정을 어드민으로 만들기
+MongoDB Shell:
+```js
+db.users.updateOne({ email: "본인이메일" }, { $set: { isAdmin: true } })
+```
+이후 로그아웃 → 재로그인 시 토큰에 isAdmin 반영, "🛠 관리자 페이지" 메뉴 노출.
+
+### 8.2. 스크래퍼 수동 실행
+```bash
+cd backend
+npm run scraper:once
+```
+또는 `POST /api/scraper/run` (SCRAPER_ADMIN_TOKEN 헤더 필요)
+
+### 8.3. 첫 출시 직전 큐레이션 데이터 채우기
+관리자 페이지 → "직접 추가" 탭에서 5~10개 항목 입력. 첫 화면이 비어 보이지 않도록.
+
+---
+
+## 9. 알려진 제약·이슈
+
+- Gemini API 무료 티어: 분당 15회, 일 1500회. 초과 시 새 데이터 안 들어옴.
+- 매시간 cron이 같은 항목 RSS에서 다시 fetch하지만 DB 중복은 unique_hash로 차단.
+- Express 5 + path-to-regexp v8 호환성 — 일부 정적 path 라우터 매칭 실패 케이스 있음. `server.js` 직접 등록으로 우회.
+- `BannerAdComponent` / `NativeAdView`는 현재 placeholder (실제 AdMob SDK 미통합).
+- 백엔드 HTTPS 미적용 — 운영 배포 시 reverse proxy(nginx, caddy 등) 필요.
+
+---
+
+## 10. 향후 작업 (출시 후 단계적)
+
+- AdMob SDK 실제 통합 + UMP(GDPR 동의 UI)
+- 푸시 알림 정밀화 (마감 임박, 신규 에어드랍 알림 토글)
+- 관리자 화면에 수정/삭제 UI (현재는 입력만)
+- 사용자 제보 알림 (승인/거절 결과를 제보자에게 푸시)
+- 백엔드 에러 모니터링 (Sentry)
+- 통계 대시보드 (어드민)
+- 사업자등록 시점에 결제 모듈 도입 (예: 프로젝트 유료 노출, VIP 멤버십)
+
+---
+
+## 부록 A — 변경 이력 (이번 세션)
+
+1. 에어드랍 데이터 진단 + RSS 수량 5→15
+2. airdrops.io 스크래퍼 추가 (39개 항목)
+3. 디테일 페이지 정규식으로 마감일 6개 추가 추출
+4. 뉴스 탭 UI 분리 (`NewsDetailScreen`)
+5. 캘린더 연동 정리 (도트 색상 구분, navigation 연결)
+6. 휴리스틱·AI 분류 정책 재정비
+7. 4건 오분류 News로 이동 (이더파이/웜홀/옵티미즘/마크롱코인)
+8. AI 프롬프트 강화 + 이중 저장 방지
+9. 일반 뉴스 흡수 (NEGATIVE 축소, SKIP=0)
+10. 영문 뉴스 158개 일괄 한국어 번역
+11. 추가 오분류 2건 정리 (아이겐레이어 계획, 2026 초 에어드랍)
+12. 8개 법적 위험 영역 코드 처리
+13. airdrops.io ToS 검토 → 완전 제거 결정
+14. 자체 큐레이션 + 사용자 제보 시스템 구축 (Submission 모델, 관리자 미들웨어, 어드민/제보 화면, 직접 입력)
+15. Express 5 라우팅 이슈 server.js 직접 등록으로 우회
+16. 좀비 프로세스 강제 종료 후 모든 신규 엔드포인트 401 검증 완료
+
+---
+
+## 부록 B — 기존 진행 보고서
+
+이전 버전(`PROGRESS_REPORT.md` 초기본)은 GuaranteedAirdrop 탭, airdrops.io 의존 등 이번 세션에서 제거된 항목을 포함하고 있어 본 문서로 완전히 대체되었습니다.

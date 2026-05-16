@@ -9,6 +9,8 @@ import {
   RefreshControl,
   Platform
 } from 'react-native';
+import * as Device from 'expo-device';
+import * as Notifications from 'expo-notifications';
 import { getAirdrops, registerPushToken } from '../services/api';
 import { AuthContext } from '../context/AuthContext';
 import BannerAdComponent from '../components/BannerAdComponent';
@@ -17,7 +19,7 @@ import NativeAdView from '../components/NativeAdView';
 const SORT_OPTIONS = [
   { key: 'latest', label: '최신순' },
   { key: 'ending_soon', label: '마감임박순' },
-  { key: 'trust_score', label: '신뢰도순' },
+  { key: 'trust_score', label: '매칭도순' },
 ];
 
 async function registerForPushNotificationsAsync(userId) {
@@ -117,6 +119,11 @@ const HomeScreen = ({ navigation }) => {
                   <Text style={[styles.tagText, { color: '#C2410C' }]}>🔥 마감 임박</Text>
                 </View>
               )}
+              {item.category && (
+                <View style={[styles.tag, styles.categoryTag]}>
+                  <Text style={[styles.tagText, { color: '#4338CA' }]}>{item.category}</Text>
+                </View>
+              )}
               {item.source && item.source.map((s, idx) => (
                 <View key={idx} style={styles.tag}>
                   <Text style={styles.tagText}>{s}</Text>
@@ -144,7 +151,7 @@ const HomeScreen = ({ navigation }) => {
         <View style={styles.titleRow}>
           <Text style={styles.listTitle}>최근 에어드랍</Text>
         </View>
-        <Text style={styles.listSubtitle}>AI가 분석한 고신뢰 프로젝트</Text>
+        <Text style={styles.listSubtitle}>AI가 분류한 진행 중 캠페인 (정보 제공 목적)</Text>
       </View>
       <View style={styles.sortContainer}>
         {SORT_OPTIONS.map((option) => (
@@ -348,6 +355,9 @@ const styles = StyleSheet.create({
   },
   closingSoonTag: {
     backgroundColor: '#FFE4E6',
+  },
+  categoryTag: {
+    backgroundColor: '#EEF2FF',
   },
   date: {
     fontSize: 11,

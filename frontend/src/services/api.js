@@ -1,7 +1,9 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const API_BASE_URL = 'http://172.23.249.92:3000'; // This should be managed better, e.g., via environment variables.
+// 핸드폰 ↔ PC 백엔드 통신용 LAN IP. PC의 Wi-Fi IP가 바뀌면 여기도 갱신해야 함.
+// 본인 PC IP 확인: PowerShell에서 `ipconfig` 또는 `Get-NetIPAddress -AddressFamily IPv4`
+const API_BASE_URL = 'http://172.30.1.34:3000';
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -34,10 +36,6 @@ export const registerPushToken = (token, userId) => {
     return apiClient.post('/api/users/push-token', { token, userId });
 };
 
-export const getGuaranteedAirdrops = () => {
-  return apiClient.get('/api/guaranteed-airdrops');
-};
-
 // --- User Participation API Calls ---
 
 export const getParticipatedAirdrops = () => {
@@ -51,6 +49,25 @@ export const markAsParticipated = (airdropId) => {
 export const unmarkAsParticipated = (airdropId) => {
   return apiClient.delete(`/api/user/airdrops/${airdropId}/participate`);
 };
+
+export const deleteAccount = () => {
+  return apiClient.delete('/api/user/account');
+};
+
+// --- 제보 (사용자) ---
+export const submitAirdrop = (payload) => apiClient.post('/api/submissions', payload);
+export const getMySubmissions = () => apiClient.get('/api/submissions/mine');
+
+// --- 관리자 ---
+export const adminListSubmissions = (status) =>
+  apiClient.get('/api/admin/submissions' + (status ? `?status=${status}` : ''));
+export const adminApproveSubmission = (id, note) =>
+  apiClient.post(`/api/admin/submissions/${id}/approve`, { note });
+export const adminRejectSubmission = (id, note) =>
+  apiClient.post(`/api/admin/submissions/${id}/reject`, { note });
+export const adminCreateAirdrop = (payload) => apiClient.post('/api/admin/airdrops', payload);
+export const adminUpdateAirdrop = (id, payload) => apiClient.put(`/api/admin/airdrops/${id}`, payload);
+export const adminDeleteAirdrop = (id) => apiClient.delete(`/api/admin/airdrops/${id}`);
 
 // --- Auth API Calls ---
 

@@ -26,7 +26,7 @@ const NewsScreen = ({ navigation }) => {
     return (
       <TouchableOpacity 
         style={styles.card}
-        onPress={() => navigation.navigate('Detail', { airdrop: item })}
+        onPress={() => navigation.navigate('NewsDetail', { news: item })}
         activeOpacity={0.7}
       >
         <View style={styles.cardContent}>
@@ -45,7 +45,7 @@ const NewsScreen = ({ navigation }) => {
   const renderListHeader = () => (
     <View style={styles.listHeader}>
       <Text style={styles.listTitle}>최근 뉴스</Text>
-      <Text style={styles.listSubtitle}>AI가 분석한 암호화폐 시장 동향</Text>
+      <Text style={styles.listSubtitle}>제3자 출처의 암호화폐 뉴스를 AI로 번역해 제공합니다</Text>
     </View>
   );
 

@@ -1,101 +1,198 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity, FlatList } from 'react-native';
-import { Calendar, DateData } from 'react-native-calendars';
-import axios from 'axios';
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ActivityIndicator,
+  TouchableOpacity,
+  FlatList,
+  RefreshControl,
+} from 'react-native';
+import { Calendar } from 'react-native-calendars';
+import { getAirdrops } from '../services/api';
 
-const API_BASE_URL = 'http://172.23.249.92:3000'; // Replace with your backend IP
+const PRIMARY = '#6366F1';
+const DOT_DEFAULT = '#6366F1';
+const DOT_CONFIRMED = '#10B981';
+const DOT_CLOSING = '#EF4444';
 
-const CalendarScreen = () => {
+const toDateKey = (date) => {
+  const d = new Date(date);
+  // 로컬 타임존 기준으로 YYYY-MM-DD
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
+
+const CalendarScreen = ({ navigation }) => {
+  const [allAirdrops, setAllAirdrops] = useState([]);
   const [markedDates, setMarkedDates] = useState({});
-  const [selectedDateAirdrops, setSelectedDateAirdrops] = useState([]);
+  const [selectedDate, setSelectedDate] = useState(toDateKey(new Date()));
   const [loading, setLoading] = useState(true);
-  const [currentMonth, setCurrentMonth] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    fetchAirdropsForCalendar();
+  const buildMarkedDates = useCallback((airdrops, selected) => {
+    const today = new Date();
+    const soon = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
+    const map = {};
+
+    airdrops.forEach((a) => {
+      if (!a.end_date) return;
+      const dateKey = toDateKey(a.end_date);
+      const endDateObj = new Date(a.end_date);
+
+      let dotColor = DOT_DEFAULT;
+      if (a.is_confirmed) dotColor = DOT_CONFIRMED;
+      if (endDateObj <= soon && endDateObj >= today) dotColor = DOT_CLOSING;
+
+      if (!map[dateKey]) {
+        map[dateKey] = { marked: true, dotColor };
+      }
+    });
+
+    if (selected) {
+      map[selected] = {
+        ...(map[selected] || {}),
+        selected: true,
+        selectedColor: PRIMARY,
+      };
+    }
+    return map;
   }, []);
 
-  const fetchAirdropsForCalendar = async (month = new Date().toISOString().slice(0, 7)) => {
-    setLoading(true);
-    try {
-      // For simplicity, fetching all airdrops. In a real app, you'd fetch by month/date range.
-      const response = await axios.get(`${API_BASE_URL}/api/airdrops`); 
-      const airdrops = response.data.data;
+  const fetchAirdropsForCalendar = useCallback(
+    async (isRefresh = false) => {
+      if (isRefresh) setRefreshing(true);
+      else setLoading(true);
+      try {
+        // 캘린더는 마감일 있는 진행 중 에어드랍을 충분히 받기 위해 limit=200
+        const response = await getAirdrops('latest');
+        const list = Array.isArray(response.data?.data) ? response.data.data : [];
+        const withEnd = list.filter((a) => !!a.end_date);
+        setAllAirdrops(withEnd);
+        setMarkedDates(buildMarkedDates(withEnd, selectedDate));
+      } catch (error) {
+        console.error('Error fetching airdrops for calendar:', error.message);
+        setAllAirdrops([]);
+        setMarkedDates({});
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [buildMarkedDates, selectedDate]
+  );
 
-      const newMarkedDates = {};
-      airdrops.forEach(airdrop => {
-        if (airdrop.end_date) {
-          const date = new Date(airdrop.end_date).toISOString().slice(0, 10);
-          newMarkedDates[date] = { selected: true, marked: true, dotColor: 'red' };
-        }
-      });
-      setMarkedDates(newMarkedDates);
-      setLoading(false);
-    } catch (error) {
-      console.error('Error fetching airdrops for calendar:', error);
-      setLoading(false);
-    }
-  };
+  useEffect(() => {
+    fetchAirdropsForCalendar(false);
+  }, [fetchAirdropsForCalendar]);
 
   const onDayPress = (day) => {
-    // Filter airdrops for the selected date
-    // This requires having all airdrops available or fetching specifically for the day
-    // For this example, we'll re-fetch all and filter in memory
-    setLoading(true);
-    axios.get(`${API_BASE_URL}/api/airdrops`)
-      .then(response => {
-        const airdrops = response.data.data;
-        const filteredAirdrops = airdrops.filter(airdrop => {
-          if (!airdrop.end_date) return false;
-          const endDate = new Date(airdrop.end_date).toISOString().slice(0, 10);
-          return endDate === day.dateString;
-        });
-        setSelectedDateAirdrops(filteredAirdrops);
-        setLoading(false);
-      })
-      .catch(error => {
-        console.error('Error fetching airdrops for selected day:', error);
-        setLoading(false);
-      });
+    setSelectedDate(day.dateString);
+    setMarkedDates(buildMarkedDates(allAirdrops, day.dateString));
   };
 
-  const renderAirdropItem = ({ item }) => (
-    <TouchableOpacity style={styles.airdropItem} onPress={() => {/* navigate to detail */}}>
-      <Text style={styles.airdropItemTitle}>{item.title}</Text>
-      <Text style={styles.airdropItemDate}>마감: {new Date(item.end_date).toLocaleDateString()}</Text>
-    </TouchableOpacity>
+  const selectedDateAirdrops = allAirdrops.filter(
+    (a) => toDateKey(a.end_date) === selectedDate
   );
+
+  const renderAirdropItem = ({ item }) => {
+    const endDateText = new Date(item.end_date).toLocaleDateString('ko-KR', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+    return (
+      <TouchableOpacity
+        style={styles.airdropItem}
+        onPress={() => navigation.navigate('Detail', { airdrop: item })}
+        activeOpacity={0.7}
+      >
+        <View style={styles.itemHeader}>
+          <Text style={styles.airdropItemTitle} numberOfLines={1}>
+            {item.title}
+          </Text>
+          {item.is_confirmed && (
+            <View style={styles.confirmedBadge}>
+              <Text style={styles.confirmedBadgeText}>✔ 공식</Text>
+            </View>
+          )}
+        </View>
+        <Text style={styles.airdropItemDate}>마감: {endDateText}</Text>
+        {!!item.category && (
+          <Text style={styles.airdropItemMeta}>카테고리: {item.category}</Text>
+        )}
+      </TouchableOpacity>
+    );
+  };
+
+  const selectedHeader = (() => {
+    const d = new Date(`${selectedDate}T00:00:00`);
+    if (isNaN(d.getTime())) return selectedDate;
+    return d.toLocaleDateString('ko-KR', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      weekday: 'short',
+    });
+  })();
 
   return (
     <View style={styles.container}>
       <Text style={styles.headerTitle}>에어드랍 캘린더</Text>
+
       <Calendar
         onDayPress={onDayPress}
         markedDates={markedDates}
         theme={{
-          selectedDayBackgroundColor: '#6366F1',
+          selectedDayBackgroundColor: PRIMARY,
           selectedDayTextColor: '#ffffff',
-          todayTextColor: '#6366F1',
-          dotColor: '#6366F1',
-          arrowColor: '#6366F1',
+          todayTextColor: PRIMARY,
+          dotColor: PRIMARY,
+          arrowColor: PRIMARY,
           monthTextColor: '#1E293B',
           textSectionTitleColor: '#64748B',
           textDayHeaderFontWeight: 'bold',
         }}
-        onMonthChange={(month) => {
-            setCurrentMonth(month.dateString); // Update current month for potential future optimizations
-        }}
       />
-      
+
+      <View style={styles.legendRow}>
+        <View style={styles.legendItem}>
+          <View style={[styles.legendDot, { backgroundColor: DOT_CLOSING }]} />
+          <Text style={styles.legendText}>3일 내 마감</Text>
+        </View>
+        <View style={styles.legendItem}>
+          <View style={[styles.legendDot, { backgroundColor: DOT_CONFIRMED }]} />
+          <Text style={styles.legendText}>공식 확정</Text>
+        </View>
+        <View style={styles.legendItem}>
+          <View style={[styles.legendDot, { backgroundColor: DOT_DEFAULT }]} />
+          <Text style={styles.legendText}>기타</Text>
+        </View>
+      </View>
+
+      <Text style={styles.selectedHeader}>{selectedHeader}</Text>
+
       {loading ? (
-        <ActivityIndicator size="large" color="#6366F1" style={{ marginTop: 20 }} />
+        <ActivityIndicator size="large" color={PRIMARY} style={{ marginTop: 20 }} />
       ) : (
         <FlatList
           data={selectedDateAirdrops}
           renderItem={renderAirdropItem}
           keyExtractor={(item) => item._id}
-          ListEmptyComponent={<Text style={styles.emptyListText}>선택된 날짜에 에어드랍이 없습니다.</Text>}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => fetchAirdropsForCalendar(true)}
+              colors={[PRIMARY]}
+            />
+          }
+          ListEmptyComponent={
+            <Text style={styles.emptyListText}>이 날짜에 마감되는 에어드랍이 없습니다.</Text>
+          }
           style={styles.airdropList}
+          contentContainerStyle={{ paddingBottom: 80 }}
         />
       )}
     </View>
@@ -109,42 +206,69 @@ const styles = StyleSheet.create({
     paddingTop: 50,
   },
   headerTitle: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: '800',
     color: '#1E293B',
-    textAlign: 'center',
-    marginBottom: 20,
+    paddingHorizontal: 20,
+    marginBottom: 12,
+  },
+  legendRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    gap: 16,
+  },
+  legendItem: { flexDirection: 'row', alignItems: 'center' },
+  legendDot: { width: 8, height: 8, borderRadius: 4, marginRight: 6 },
+  legendText: { fontSize: 12, color: '#64748B', fontWeight: '600' },
+  selectedHeader: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#334155',
+    paddingHorizontal: 20,
+    marginTop: 8,
+    marginBottom: 8,
   },
   airdropList: {
-    marginTop: 20,
+    flex: 1,
     width: '100%',
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
   },
   airdropItem: {
     backgroundColor: '#FFFFFF',
-    padding: 15,
-    borderRadius: 10,
+    padding: 16,
+    borderRadius: 12,
     marginBottom: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 5,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+  },
+  itemHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
   },
   airdropItemTitle: {
+    flex: 1,
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#1E293B',
   },
-  airdropItemDate: {
-    fontSize: 12,
-    color: '#64748B',
-    marginTop: 5,
+  airdropItemDate: { fontSize: 12, color: '#64748B', marginTop: 4 },
+  airdropItemMeta: { fontSize: 11, color: '#94A3B8', marginTop: 2 },
+  confirmedBadge: {
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    marginLeft: 8,
   },
+  confirmedBadgeText: { color: '#166534', fontSize: 10, fontWeight: '800' },
   emptyListText: {
     textAlign: 'center',
-    marginTop: 20,
-    color: '#64748B',
+    marginTop: 30,
+    color: '#94A3B8',
+    fontSize: 13,
   },
 });
 

@@ -4,9 +4,12 @@ const News = require('../models/News');
 const getAirdrops = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 20;
-    const sort = req.query.sort || 'latest';
     const type = req.query.type || 'airdrops';
+    // type별로 다른 기본 limit: 뉴스는 최대 50개 표시 정책, 에어드랍/캘린더는 더 큰 수량 허용
+    const defaultLimit = type === 'news' ? 50 : 100;
+    const requested = parseInt(req.query.limit);
+    const limit = Math.min(Number.isFinite(requested) && requested > 0 ? requested : defaultLimit, 200);
+    const sort = req.query.sort || 'latest';
     const skip = (page - 1) * limit;
 
     if (type === 'news') {

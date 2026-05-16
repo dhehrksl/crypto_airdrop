@@ -15,7 +15,11 @@ import RegisterScreen from './src/screens/RegisterScreen';
 import UserScreen from './src/screens/UserScreen';
 import CalendarScreen from './src/screens/CalendarScreen'; // New import
 import NewsScreen from './src/screens/NewsScreen'; // New import
-import GuaranteedScreen from './src/screens/GuaranteedScreen'; // New import
+import NewsDetailScreen from './src/screens/NewsDetailScreen';
+import PolicyScreen from './src/screens/PolicyScreen';
+import SubmitAirdropScreen from './src/screens/SubmitAirdropScreen';
+import AdminScreen from './src/screens/AdminScreen';
+import DisclaimerGate from './src/components/DisclaimerGate';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator(); // New Tab Navigator
@@ -37,8 +41,6 @@ const AppTabs = () => {
             iconName = focused ? 'calendar' : 'calendar-outline';
           } else if (route.name === 'NewsTab') {
             iconName = focused ? 'newspaper' : 'newspaper-outline';
-          } else if (route.name === 'GuaranteedTab') {
-            iconName = focused ? 'rocket' : 'rocket-outline'; // Or any other suitable icon
           } else if (route.name === 'UserTab') {
             iconName = focused ? 'person' : 'person-outline';
           }
@@ -52,7 +54,6 @@ const AppTabs = () => {
     >
       <Tab.Screen name="HomeTab" component={HomeScreen} options={{ title: '에어드랍' }} />
       <Tab.Screen name="NewsTab" component={NewsScreen} options={{ title: '뉴스' }} />
-      <Tab.Screen name="GuaranteedTab" component={GuaranteedScreen} options={{ title: '확정 에어드랍' }} />
       <Tab.Screen name="CalendarTab" component={CalendarScreen} options={{ title: '캘린더' }} />
       <Tab.Screen name="UserTab" component={UserScreen} options={{ title: '내 정보' }} />
     </Tab.Navigator>
@@ -91,13 +92,36 @@ const AppNav = () => {
               component={AppTabs} 
               options={{ headerShown: false }}
             />
-            <Stack.Screen 
-              name="Detail" 
-              component={DetailScreen} 
-              options={{ 
+            <Stack.Screen
+              name="Detail"
+              component={DetailScreen}
+              options={{
                 headerShown: false,
                 presentation: 'modal',
               }}
+            />
+            <Stack.Screen
+              name="NewsDetail"
+              component={NewsDetailScreen}
+              options={{
+                headerShown: false,
+                presentation: 'modal',
+              }}
+            />
+            <Stack.Screen
+              name="Policy"
+              component={PolicyScreen}
+              options={{ headerShown: false, presentation: 'modal' }}
+            />
+            <Stack.Screen
+              name="SubmitAirdrop"
+              component={SubmitAirdropScreen}
+              options={{ headerShown: false, presentation: 'modal' }}
+            />
+            <Stack.Screen
+              name="Admin"
+              component={AdminScreen}
+              options={{ headerShown: false, presentation: 'modal' }}
             />
             <Stack.Screen
               name="WebView"
@@ -139,7 +163,9 @@ const styles = StyleSheet.create({
 export default function App() {
   return (
     <AuthProvider>
-      <AppNav />
+      <DisclaimerGate>
+        <AppNav />
+      </DisclaimerGate>
     </AuthProvider>
   );
 }

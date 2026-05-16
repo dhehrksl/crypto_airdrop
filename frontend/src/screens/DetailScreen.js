@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIn
 import BannerAdComponent from '../components/BannerAdComponent';
 import { AuthContext } from '../context/AuthContext';
 import { markAsParticipated, unmarkAsParticipated, getMarketPrice } from '../services/api';
+import { DISCLAIMER_SHORT } from '../constants/policies';
 
 const DetailScreen = ({ route, navigation }) => {
   const { airdrop: initialAirdrop } = route.params;
@@ -103,16 +104,22 @@ const DetailScreen = ({ route, navigation }) => {
     <View style={styles.mainContainer}>
       <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
         <View style={styles.heroSection}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.closeButton}
             onPress={() => navigation.goBack()}
           >
             <Text style={styles.closeButtonText}>✕</Text>
           </TouchableOpacity>
-          <View style={[styles.scoreCircle, { borderColor: getScoreColor(airdrop.trust_score) }]}>
-            <Text style={[styles.scoreValue, { color: getScoreColor(airdrop.trust_score) }]}>{airdrop.trust_score || 0}</Text>
-            <Text style={styles.scoreLabel}>신뢰 점수</Text>
-          </View>
+          {airdrop.is_airdrop ? (
+            <View style={[styles.scoreCircle, { borderColor: getScoreColor(airdrop.trust_score) }]}>
+              <Text style={[styles.scoreValue, { color: getScoreColor(airdrop.trust_score) }]}>{airdrop.trust_score || 0}</Text>
+              <Text style={styles.scoreLabel}>AI 매칭도</Text>
+            </View>
+          ) : (
+            <View style={[styles.scoreCircle, styles.newsBadge]}>
+              <Text style={styles.newsBadgeText}>NEWS</Text>
+            </View>
+          )}
           <Text style={styles.title}>{title}</Text>
           
           {(airdrop.tokenTicker || airdrop.projectName) && (
@@ -189,7 +196,7 @@ const DetailScreen = ({ route, navigation }) => {
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>🔗 공식 링크</Text>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.linkCard}
               onPress={handleOpenWebView}
             >
@@ -197,27 +204,42 @@ const DetailScreen = ({ route, navigation }) => {
               <Text style={styles.linkHint}>탭하여 열기</Text>
             </TouchableOpacity>
           </View>
+
+          <View style={styles.disclaimerBox}>
+            <Text style={styles.disclaimerText}>⚠ {DISCLAIMER_SHORT}</Text>
+          </View>
         </View>
       </ScrollView>
 
       <BannerAdComponent />
 
-      <View style={styles.bottomBar}>
-        <TouchableOpacity
-          style={[styles.participationButton, isParticipated && styles.participatedButton]}
-          onPress={handleToggleParticipation}
-        >
-          <Text style={[styles.participationButtonText, isParticipated && styles.participatedButtonText]}>
-            {isParticipated ? '✔ 참여 완료' : '참여 완료로 표시'}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          style={styles.mainButton}
-          onPress={handleOpenWebView}
-        >
-          <Text style={styles.mainButtonText}>참여하러 가기</Text>
-        </TouchableOpacity>
-      </View>
+      {airdrop.is_airdrop ? (
+        <View style={styles.bottomBar}>
+          <TouchableOpacity
+            style={[styles.participationButton, isParticipated && styles.participatedButton]}
+            onPress={handleToggleParticipation}
+          >
+            <Text style={[styles.participationButtonText, isParticipated && styles.participatedButtonText]}>
+              {isParticipated ? '✔ 참여 완료' : '참여 완료로 표시'}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.mainButton}
+            onPress={handleOpenWebView}
+          >
+            <Text style={styles.mainButtonText}>참여하러 가기</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <View style={styles.bottomBar}>
+          <TouchableOpacity
+            style={[styles.mainButton, styles.fullWidthButton]}
+            onPress={handleOpenWebView}
+          >
+            <Text style={styles.mainButtonText}>원문 보기</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 };
@@ -264,6 +286,9 @@ const styles = StyleSheet.create({
   },
   scoreValue: { fontSize: 28, fontWeight: '900' },
   scoreLabel: { fontSize: 10, color: '#94A3B8', fontWeight: '700', textTransform: 'uppercase' },
+  newsBadge: { borderColor: '#6366F1', backgroundColor: '#EEF2FF' },
+  newsBadgeText: { fontSize: 18, fontWeight: '900', color: '#4338CA', letterSpacing: 1 },
+  fullWidthButton: { flex: 1, marginLeft: 0 },
   title: { fontSize: 24, fontWeight: '800', color: '#1E293B', textAlign: 'center', marginBottom: 8, lineHeight: 32 },
   priceContainer: {
     flexDirection: 'row',
@@ -363,6 +388,15 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   mainButtonText: { color: '#FFFFFF', fontSize: 18, fontWeight: '700' },
+  disclaimerBox: {
+    backgroundColor: '#FEF3C7',
+    borderRadius: 12,
+    padding: 14,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: '#FCD34D',
+  },
+  disclaimerText: { fontSize: 12, lineHeight: 18, color: '#78350F' },
 });
 
 export default DetailScreen;

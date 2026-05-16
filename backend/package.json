@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node server.js",
+    "scraper:once": "node scripts/scraper/run.js",
+    "test:api": "node scripts/test_api.js"
   },
   "keywords": [],
   "author": "",
@@ -13,6 +15,7 @@
     "@google/generative-ai": "^0.24.1",
     "axios": "^1.7.9",
     "bcryptjs": "^3.0.3",
+    "cheerio": "^1.2.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "expo-auth-session": "^55.0.16",

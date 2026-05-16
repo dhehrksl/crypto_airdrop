@@ -38,6 +38,19 @@ const airdropSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  // airdrops.io 등 카탈로그형 소스에서 채워지는 필드 — RSS 출처는 비워둠
+  chain: {
+    type: [String],
+    default: undefined,
+  },
+  category: {
+    type: String,
+    trim: true,
+  },
+  tasks: {
+    type: [String],
+    default: undefined,
+  },
   source: {
     type: [String], // 출처를 배열로 하여 중복 시 upsert 가능하게 처리
     required: true,

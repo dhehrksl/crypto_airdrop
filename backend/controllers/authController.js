@@ -22,7 +22,7 @@ const registerUser = async (req, res) => {
     const payload = { user: { id: user.id } };
     jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' }, (err, token) => {
       if (err) throw err;
-      res.json({ token, user: { id: user.id, username: user.username, email: user.email } });
+      res.json({ token, user: { id: user.id, username: user.username, email: user.email, isAdmin: !!user.isAdmin } });
     });
   } catch (err) {
     console.error(err.message);
@@ -41,7 +41,7 @@ const loginUser = async (req, res) => {
     const payload = { user: { id: user.id } };
     jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' }, (err, token) => {
       if (err) throw err;
-      res.json({ token, user: { id: user.id, username: user.username, email: user.email } });
+      res.json({ token, user: { id: user.id, username: user.username, email: user.email, isAdmin: !!user.isAdmin } });
     });
   } catch (err) {
     console.error(err.message);
@@ -105,6 +105,7 @@ const googleSignIn = async (req, res) => {
             username: user.username,
             email: user.email,
             avatarUrl: user.avatarUrl,
+            isAdmin: !!user.isAdmin,
           },
         });
       }
