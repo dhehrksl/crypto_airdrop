@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const Airdrop = require('../models/Airdrop');
+const { isBlockedSource } = require('../src/config/blockedSources');
 
 function buildUniqueHash(seed) {
   return 'curated:' + crypto.createHash('sha256').update(seed + Date.now().toString()).digest('hex').slice(0, 24);
@@ -21,6 +22,15 @@ const adminCreateAirdrop = async (req, res) => {
     } = req.body;
     if (!title || !description || !official_link) {
       return res.status(400).json({ msg: '제목, 설명, 공식 링크는 필수입니다.' });
+    }
+    const blockedCheck = isBlockedSource({ link: official_link });
+    if (blockedCheck.blocked) {
+      return res.status(400).json({
+        error: 'blocked_source',
+        reason: blockedCheck.reason,
+        host: blockedCheck.matched,
+        msg: `차단된 출처입니다: ${blockedCheck.matched}`,
+      });
     }
     const uniqueHash = buildUniqueHash(title + official_link);
     const doc = {
@@ -55,6 +65,18 @@ const adminUpdateAirdrop = async (req, res) => {
   try {
     const a = await Airdrop.findById(req.params.id);
     if (!a) return res.status(404).json({ msg: 'Airdrop not found' });
+
+    if (req.body.official_link) {
+      const blockedCheck = isBlockedSource({ link: req.body.official_link });
+      if (blockedCheck.blocked) {
+        return res.status(400).json({
+          error: 'blocked_source',
+          reason: blockedCheck.reason,
+          host: blockedCheck.matched,
+          msg: `차단된 출처입니다: ${blockedCheck.matched}`,
+        });
+      }
+    }
 
     const allowed = ['title', 'description', 'official_link', 'category', 'chain', 'end_date', 'trust_score', 'is_confirmed', 'tokenTicker'];
     for (const key of allowed) {

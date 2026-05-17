@@ -5,6 +5,8 @@ const Airdrop = require('../../models/Airdrop');
 const News = require('../../models/News');
 const User = require('../../models/User');
 const { Expo } = require('expo-server-sdk');
+const { isBlockedSource } = require('../config/blockedSources');
+const { fetchSnapshotProposals } = require('./snapshotSource');
 // airdrops.io 스크래퍼는 ToS의 상업적 사용 금지 조항으로 제거됨.
 // 자체 큐레이션 + 사용자 제보 시스템으로 대체.
 const expo = new Expo();
@@ -28,7 +30,7 @@ const parser = new RSSParser({
 });
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 const RSS_SOURCES = [
-  // Existing Sources
+  // === 일반 암호화폐 뉴스 (광범위 커버) ===
   { name: 'CoinTelegraph', url: 'https://cointelegraph.com/rss/tag/airdrop' },
   { name: 'CoinDesk', url: 'https://www.coindesk.com/arc/outboundfeeds/rss/' },
   { name: 'Medium-Airdrop', url: 'https://medium.com/feed/tag/airdrop' },
@@ -38,18 +40,51 @@ const RSS_SOURCES = [
   { name: 'Decrypt', url: 'https://decrypt.co/feed' },
   { name: 'CryptoSlate', url: 'https://cryptoslate.com/feed/' },
   { name: 'Blockworks', url: 'https://blockworks.co/feed/' },
-
-  // Newly Added Sources
   { name: 'The Block', url: 'https://theblock.co/rss.xml' },
   { name: 'Bitcoin.com News', url: 'https://news.bitcoin.com/feed' },
-  // CryptoNews / CryptoPanic / Bitcoinist / Forbes: fetch 지속 실패 (URL 변경 또는 차단 추정).
-  // URL 확인 후 부활시키려면 주석 해제하세요.
-  // { name: 'CryptoNews', url: 'https://cryptonews.com/news/feed' },
-  // { name: 'CryptoPanic', url: 'https://cryptopanic.com/news/rss' },
   { name: 'U.Today', url: 'https://u.today/rss' },
-  // { name: 'Bitcoinist', url: 'https://bitcoinist.com/feed' },
   { name: 'The Defiant', url: 'https://thedefiant.io/feed/' },
   { name: 'CryptoPotato', url: 'https://cryptopotato.com/feed' },
+
+  // === Medium 태그 피드 (에어드랍 활성 분야 좁게) ===
+  // airdrop 태그는 이미 위에 있음. 토픽별 분산으로 새 캠페인 발견율 ↑
+  { name: 'Medium-Restaking', url: 'https://medium.com/feed/tag/restaking' },
+  { name: 'Medium-EigenLayer', url: 'https://medium.com/feed/tag/eigenlayer' },
+  { name: 'Medium-ZKRollup', url: 'https://medium.com/feed/tag/zk-rollup' },
+  { name: 'Medium-Layer2', url: 'https://medium.com/feed/tag/layer-2' },
+  { name: 'Medium-DePIN', url: 'https://medium.com/feed/tag/depin' },
+  { name: 'Medium-Testnet', url: 'https://medium.com/feed/tag/testnet' },
+
+  // === 거버넌스 포럼 (Discourse 기본 RSS) ===
+  // 토큰 분배/에어드랍 제안이 가장 먼저 올라오는 곳
+  { name: 'Forum-Arbitrum', url: 'https://forum.arbitrum.foundation/latest.rss' },
+  { name: 'Forum-Optimism', url: 'https://gov.optimism.io/latest.rss' },
+  { name: 'Forum-Celestia', url: 'https://forum.celestia.org/latest.rss' },
+
+  // === 프로젝트 공식 블로그 (RSS는 발행자가 명시적으로 공개한 채널 — 가장 안전한 출처) ===
+  // L1 / L2 / 인프라 위주.
+  { name: 'Blog-Celestia', url: 'https://blog.celestia.org/rss/' },
+  { name: 'Blog-Ethereum', url: 'https://blog.ethereum.org/feed.xml' },
+  { name: 'Blog-Sui', url: 'https://blog.sui.io/rss/' },
+  { name: 'Blog-EigenLayer', url: 'https://blog.eigenlayer.xyz/rss/' },
+  { name: 'Blog-Thirdweb', url: 'https://blog.thirdweb.com/rss/' },
+  // fetch 실패 — URL 변경 추정. 정확한 RSS 경로 확인 후 부활:
+  // { name: 'Blog-Optimism', url: 'https://blog.optimism.io/rss/' },
+  // { name: 'Blog-Scroll', url: 'https://scroll.io/blog/rss.xml' },
+
+  // === Medium 공식 publication (web3 프로젝트의 발표 채널) ===
+  // Medium은 `@<account>/feed` 또는 `<publication>/feed` 패턴으로 RSS 표준 제공
+  { name: 'Medium-StarkWare', url: 'https://medium.com/feed/@starkware' },
+  { name: 'Medium-AaveProtocol', url: 'https://medium.com/feed/@aave' },
+  { name: 'Medium-AptosLabs', url: 'https://aptoslabs.medium.com/feed' },
+  // fetch 실패 — 계정명/publication 변경 추정:
+  // { name: 'Medium-OffchainLabs', url: 'https://medium.com/offchainlabs/feed' },
+  // { name: 'Medium-LayerZero', url: 'https://medium.com/feed/@layerzero_official' },
+
+  // === 비활성 (URL 변경/차단으로 fetch 실패 — URL 확인 후 부활) ===
+  // { name: 'CryptoNews', url: 'https://cryptonews.com/news/feed' },
+  // { name: 'CryptoPanic', url: 'https://cryptopanic.com/news/rss' },
+  // { name: 'Bitcoinist', url: 'https://bitcoinist.com/feed' },
   // { name: 'Forbes Crypto', url: 'https://www.forbes.com/digital-assets/feed/' },
 ];
 
@@ -87,6 +122,18 @@ async function fetchRealData() {
       console.warn(`[Skip Source] ${source.name}: ${reason}`);
     }
   }
+
+  // Snapshot DAO 거버넌스 — 활성 proposal 중 에어드랍/분배 키워드 매치만
+  try {
+    const snapshotItems = await fetchSnapshotProposals();
+    if (snapshotItems.length > 0) {
+      console.log(`[Snapshot] fetched ${snapshotItems.length} airdrop-related active proposals`);
+      allItems = [...allItems, ...snapshotItems];
+    }
+  } catch (e) {
+    console.warn(`[Snapshot] error: ${e.message || e}`);
+  }
+
   return Array.from(new Map(allItems.map(item => [item.id, item])).values());
 }
 
@@ -122,7 +169,9 @@ async function sendPushNotifications(airdrop) {
 
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+// 기본 모델 gemini-2.5-flash-lite — 무료 tier 1,500 RPD / 30 RPM / 1M TPM
+// (gemini-2.5-flash는 무료 20 RPD로 매시 cron에 부족함. 텍스트 분류/요약 정확도는 lite로 충분.)
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite';
 const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
 
 // 휴리스틱 점수 임계값
@@ -130,13 +179,13 @@ const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
 // SKIP_THRESHOLD ≤ score < AI_THRESHOLD : 휴리스틱 결과만 저장 (AI 호출 안 함) → News로 저장
 // score ≥ AI_THRESHOLD              : AI 호출하여 정밀 분석 (배치 처리)
 //
-// NEGATIVE 패턴이 광고/노이즈만 거르므로, 일반 암호화폐 뉴스를 흡수하기 위해 SKIP=0.
-// AI 호출은 에어드랍 키워드가 있는 항목(점수 5+)에만 — 비용 통제.
+// NEGATIVE는 광고/노이즈만 거르고, POSITIVE 시그널이 없는 일반 뉴스는 휴리스틱으로 News에 직접
+// 저장한다(AI 호출 비용 통제). title 매치 1회만 있어도 10점 → AI로 감.
 const SKIP_THRESHOLD = 0;
 const AI_THRESHOLD = 5;
 // 한 번의 generateContent 호출에 묶을 항목 수.
-// 토큰 사용량 / 응답 길이 / 모델 혼동 위험을 고려해 10이 안전한 기본값.
-const BATCH_SIZE = 10;
+// gemini-2.5-flash-lite 응답 길이 여유 고려해 20으로 확대 (10 → 20).
+const BATCH_SIZE = 20;
 
 async function saveHeuristic(item, evaluation) {
   // 휴리스틱(키워드 매칭) 단독으로는 에어드랍/뉴스를 신뢰성 있게 구분할 수 없다.
@@ -159,8 +208,52 @@ async function saveHeuristic(item, evaluation) {
   );
 }
 
+// AI가 "활성 에어드랍"으로 분류했지만 사실은 이미 끝난 경우를 잡아내는 사후 검증.
+// 반환값: { demote: boolean, reason?: string, parsedEndDate?: Date }
+//
+// - end_date 파싱 결과가 현재보다 1시간 이상 과거 → demote (시각 정밀도 + clock drift 여유)
+// - end_date 누락 + 본문에 종결 키워드 → demote (task 2.3)
+const POST_AIRDROP_GUARD_GRACE_MS = 60 * 60 * 1000; // 1시간
+const ENDED_KEYWORDS_REGEX =
+  /\b(airdrop\s+(has\s+)?ended|distribution\s+(is\s+)?complete|claim\s+period\s+closed|claim\s+window\s+closed|tokens\s+have\s+been\s+distributed|snapshot\s+(was|has been)\s+taken)\b/i;
+
+function shouldDemoteAirdrop(aiResult, item) {
+  if (!aiResult || aiResult.is_airdrop !== true) return { demote: false };
+
+  if (aiResult.end_date) {
+    const d = new Date(aiResult.end_date);
+    if (!isNaN(d.getTime())) {
+      if (d.getTime() < Date.now() - POST_AIRDROP_GUARD_GRACE_MS) {
+        return { demote: true, reason: 'past_end_date', parsedEndDate: d };
+      }
+      // 파싱 가능 + 미래 → 통과
+      return { demote: false, parsedEndDate: d };
+    }
+  }
+
+  // end_date 누락 — 본문에 종결 키워드가 있는지 확인 (영문 RSS 기준)
+  const haystack = `${item.title || ''}\n${item.content || ''}`;
+  if (ENDED_KEYWORDS_REGEX.test(haystack)) {
+    return { demote: true, reason: 'ended_keyword_in_body' };
+  }
+
+  return { demote: false };
+}
+
 async function saveAiResult(item, aiResult) {
   if (!aiResult || aiResult.is_scam === true) return;
+
+  // 사후 검증 — 이미 끝난 에어드랍을 News로 강등
+  const check = shouldDemoteAirdrop(aiResult, item);
+  if (check.demote) {
+    console.warn(
+      `[AI post-check] demoted to News: ${aiResult.title} (reason=${check.reason}` +
+        (check.parsedEndDate ? `, end_date=${check.parsedEndDate.toISOString()}` : '') +
+        `)`
+    );
+    aiResult = { ...aiResult, is_airdrop: false, trust_score: 0 };
+  }
+
   if (aiResult.is_airdrop) {
     const updateData = {
       title: aiResult.title,
@@ -213,8 +306,10 @@ function buildBatchPrompt(batch) {
     content: (item.content || '').slice(0, 800),
     link: item.link,
   }));
+  const todayISO = new Date().toISOString().slice(0, 10);
   return `
-You are a cryptocurrency airdrop analyst. Analyze the ${batch.length} articles in the input below.
+You are a cryptocurrency airdrop analyst. Today's date is ${todayISO}.
+Analyze the ${batch.length} articles in the input below.
 For each article: (1) decide if it is an actionable, currently-claimable airdrop CAMPAIGN that users can participate in,
 (2) detect scams, (3) translate title and description into Korean.
 
@@ -240,25 +335,43 @@ Respond ONLY with a JSON object with this EXACT structure (no markdown, no expla
 === STRICT RULES FOR is_airdrop ===
 Set is_airdrop=true ONLY when ALL of these hold:
   (a) The article is about a SPECIFIC airdrop campaign (named project + token or points program).
-  (b) The campaign is currently LIVE, OPEN FOR SIGN-UP, or starts in the near future (not yet ended).
+  (b) The campaign is currently LIVE, OPEN FOR SIGN-UP, or starts in the near future
+      (claim window or eligibility window NOT yet closed — relative to today ${todayISO}).
   (c) The article tells the reader concrete steps to participate (e.g. connect wallet, complete quests,
       bridge funds, hold a token, register on a site).
+
+=== TEMPORAL CHECK (very important) ===
+Before setting is_airdrop=true, do a temporal sanity check:
+  - If the article describes events in PAST TENSE ("airdrop was distributed", "tokens were claimed",
+    "snapshot was taken", "claim period ended"), set is_airdrop=false.
+  - If the article references a year/month that is in the PAST relative to today (${todayISO}) as the
+    distribution/claim time, set is_airdrop=false. Example: today is 2026; an article about a "2024
+    airdrop distribution" is news, not an actionable campaign.
+  - Even if the article tells you HOW the campaign worked, if the campaign already ended, it is news.
+  - When end_date can be inferred, use it. If end_date < today, is_airdrop MUST be false.
 
 Set is_airdrop=FALSE in ALL of these cases (these are news, not actionable airdrops):
   - Article reports on the AFTERMATH of an airdrop that already happened
     (token launch, post-distribution price movement, market reaction, value drop/surge after claim).
+  - Article uses end-state vocabulary: "airdrop ended", "claim period closed", "distribution complete",
+    "token went live", "tokens have been distributed", "snapshot has been taken in <past month/year>".
   - Article discusses price predictions, market analysis, ETF news, regulation, lawsuits, hacks,
     funding rounds, ecosystem updates, opinion pieces, or general project news.
   - Article only speculates that an airdrop "might come" with no concrete participation steps.
   - Article ranks past airdrops, lists historical airdrops, or summarizes the year's airdrops.
   - Article is a generic guide or educational explainer about airdrops as a concept.
+  - Article is a retrospective tutorial referencing how to have qualified for a PAST airdrop
+    (e.g. "How to have staked TIA to receive Celestia's 2023 airdrop"). Past tense = news.
 
 Examples of titles that MUST be is_airdrop=false (these are all news):
-  - "Wormhole's $617M airdrop sparks 23% W price drop"  (aftermath/market reaction)
-  - "EtherFi airdrop sparks market turbulence, ETHFI drops 35%"  (aftermath)
-  - "How a new development could stop OP price rally"  (price analysis)
-  - "Top 13 airdrops that distributed $4B in 2023"  (historical ranking)
-  - "LayerZero crosses milestone — is an airdrop coming?"  (speculation, no steps)
+  - "Wormhole's $617M airdrop sparks 23% W price drop"          (aftermath/market reaction)
+  - "EtherFi airdrop sparks market turbulence, ETHFI drops 35%" (aftermath)
+  - "How a new development could stop OP price rally"           (price analysis)
+  - "Top 13 airdrops that distributed $4B in 2023"              (historical ranking)
+  - "LayerZero crosses milestone — is an airdrop coming?"       (speculation, no steps)
+  - "Solana Mobile launches SKR airdrop to Seeker phone users"  (already-launched distribution)
+  - "Celestia Network: How to stake TIA for the airdrop"        (retrospective on past 2023 airdrop)
+  - "Wormhole launches $617M airdrop to early users"            (already-launched distribution)
 
 === OTHER RULES ===
 - "title" and "description" MUST be in Korean. NEVER leave them in English.
@@ -302,12 +415,26 @@ async function runScraper() {
   let aiCalls = 0;
   let heuristicSaves = 0;
   let skipped = 0;
+  let blocked = 0;
   let aiSaved = 0;
 
-  // Phase 1: 사전 분류 — DB 중복 제거. 모든 신규 항목은 AI로 분류+번역 처리.
-  // (휴리스틱은 NEGATIVE 패턴 매칭으로 광고/노이즈만 거름. 점수에 따른 차등 없음.)
+  // Phase 1: 분류 라우팅
+  //   - blocked → 버림 (차단 출처)
+  //   - skip → 버림 (광고/노이즈)
+  //   - score < AI_THRESHOLD → 휴리스틱으로 News에 직접 저장 (AI 호출 안 함)
+  //   - score >= AI_THRESHOLD → AI 배치로 정밀 분석
   const aiCandidates = [];
   for (const item of rawItems) {
+    // 차단 출처 가드 — DB 조회/AI 호출 비용 전에 거름
+    const blockedCheck = isBlockedSource({ link: item.link, sourceName: item.sourceName });
+    if (blockedCheck.blocked) {
+      blocked++;
+      console.warn(
+        `[Blocked source] ${blockedCheck.reason}=${blockedCheck.matched} | ${item.title}`
+      );
+      continue;
+    }
+
     const existingAirdrop = await Airdrop.findOne({ unique_hash: { $eq: item.id } });
     const existingNews = await News.findOne({ unique_hash: { $eq: item.id } });
     if (existingAirdrop || existingNews) continue;
@@ -315,6 +442,12 @@ async function runScraper() {
     const evaluation = evaluateNews(item);
     if (evaluation.skip) {
       skipped++;
+      continue;
+    }
+    // POSITIVE 시그널이 없으면 AI 호출 없이 휴리스틱으로 News에 직접 저장 (quota 절약)
+    if (evaluation.score < AI_THRESHOLD) {
+      await saveHeuristic(item, evaluation);
+      heuristicSaves++;
       continue;
     }
     aiCandidates.push({ item, evaluation });
@@ -365,12 +498,22 @@ async function runScraper() {
     aiSaved,
     heuristic: heuristicSaves,
     skipped,
+    blocked,
     prunedNews,
     finishedAt: new Date().toISOString(),
   };
   console.log(
-    `--- Finished --- (items=${stats.items}, aiCalls=${stats.aiCalls}, aiSaved=${stats.aiSaved}, heuristic=${stats.heuristic}, skipped=${stats.skipped}, prunedNews=${prunedNews})`
+    `--- Finished --- (items=${stats.items}, aiCalls=${stats.aiCalls}, aiSaved=${stats.aiSaved}, heuristic=${stats.heuristic}, skipped=${stats.skipped}, blocked=${stats.blocked}, prunedNews=${prunedNews})`
   );
   return stats;
 }
-module.exports = { runScraper, fetchRealData, evaluateNews, pruneOldNews, SKIP_THRESHOLD, AI_THRESHOLD, BATCH_SIZE };
+module.exports = {
+  runScraper,
+  fetchRealData,
+  evaluateNews,
+  pruneOldNews,
+  shouldDemoteAirdrop,
+  SKIP_THRESHOLD,
+  AI_THRESHOLD,
+  BATCH_SIZE,
+};

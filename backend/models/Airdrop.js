@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { isBlockedSource } = require('../src/config/blockedSources');
 
 const airdropSchema = new mongoose.Schema({
   title: {
@@ -75,6 +76,52 @@ airdropSchema.index({ trust_score: -1 });
 airdropSchema.index({ created_at: -1 });
 airdropSchema.index({ end_date: 1 });
 airdropSchema.index({ is_confirmed: -1 });
+
+// 차단된 출처 진입 차단 — defense-in-depth.
+// 스크래퍼/컨트롤러 가드를 우회하는 경로(직접 create, raw update 등)에서도 막힌다.
+function assertNotBlocked(payload) {
+  const check = isBlockedSource({
+    link: payload.official_link,
+    sources: Array.isArray(payload.source) ? payload.source : undefined,
+    sourceName: typeof payload.source === 'string' ? payload.source : undefined,
+  });
+  if (check.blocked) {
+    const err = new mongoose.Error.ValidationError();
+    err.addError(
+      'official_link',
+      new mongoose.Error.ValidatorError({
+        message: `차단된 출처입니다: ${check.matched} (reason=${check.reason})`,
+        path: 'official_link',
+        value: payload.official_link,
+      })
+    );
+    throw err;
+  }
+}
+
+airdropSchema.pre('save', function (next) {
+  try {
+    assertNotBlocked({ official_link: this.official_link, source: this.source });
+    next();
+  } catch (err) {
+    next(err);
+  }
+});
+
+airdropSchema.pre(/^(findOneAndUpdate|updateOne|updateMany|replaceOne)$/, function (next) {
+  try {
+    const update = this.getUpdate() || {};
+    const $set = update.$set || {};
+    const payload = {
+      official_link: update.official_link || $set.official_link,
+      source: update.source || $set.source,
+    };
+    if (payload.official_link || payload.source) assertNotBlocked(payload);
+    next();
+  } catch (err) {
+    next(err);
+  }
+});
 
 
 module.exports = mongoose.model('Airdrop', airdropSchema);
