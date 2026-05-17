@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const helmet = require('helmet');
 const { Expo } = require('expo-server-sdk');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
@@ -9,14 +10,83 @@ const Airdrop = require('./models/Airdrop');
 const News = require('./models/News');
 const User = require('./models/User');
 const { runScraper } = require('./src/services/scraper');
+const { authLimiter, submissionLimiter, generalLimiter } = require('./middleware/rateLimits');
+const errorHandler = require('./middleware/errorHandler');
+
+// ===== 보안 자가 진단 (부팅 시 1회) =====
+function runSecuritySelfCheck() {
+  const isProd = process.env.NODE_ENV === 'production';
+  const corsOrigins = (process.env.CORS_ALLOWED_ORIGINS || '').trim();
+  const KNOWN_WEAK_JWT = [
+    '',
+    'change-me-to-a-long-random-string',
+    'your-super-secret-key-that-is-long',
+  ];
+  const warnings = [];
+  const fatals = [];
+
+  if (isProd && !corsOrigins) {
+    fatals.push('CORS_ALLOWED_ORIGINS가 비어 있습니다 (production 필수). 운영 도메인을 쉼표 구분으로 설정하세요.');
+  } else if (!corsOrigins) {
+    warnings.push('CORS_ALLOWED_ORIGINS 미설정 — 개발 모드 fallback으로 모든 origin 허용');
+  }
+
+  if (KNOWN_WEAK_JWT.includes(process.env.JWT_SECRET || '')) {
+    warnings.push('JWT_SECRET이 알려진 기본/약한 값입니다. crypto.randomBytes(48).toString("base64url")로 갱신 권장.');
+  }
+
+  if (!process.env.SCRAPER_ADMIN_TOKEN) {
+    warnings.push('SCRAPER_ADMIN_TOKEN 미설정 — /api/scraper/run 인증이 비활성화됩니다 (개발용).');
+  }
+
+  if (isProd && process.env.GOOGLE_CLIENT_ID === 'dummy') {
+    warnings.push('GOOGLE_CLIENT_ID=dummy in production — Google 로그인 작동 안 함.');
+  }
+
+  for (const w of warnings) console.warn('[보안 경고]', w);
+  for (const f of fatals) console.error('[보안 치명적]', f);
+  if (fatals.length > 0) {
+    console.error('production 환경에서 치명적 보안 설정이 누락되어 부팅을 중단합니다.');
+    process.exit(1);
+  }
+}
+runSecuritySelfCheck();
 
 const app = express();
 const expo = new Expo();
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-key-that-is-long';
 
-app.use(cors());
+// ===== 보안 미들웨어 =====
+// helmet — 표준 보안 헤더. API-only라 CSP는 비활성
+app.use(helmet({ contentSecurityPolicy: false }));
+
+// CORS — 화이트리스트 (CORS_ALLOWED_ORIGINS env, 쉼표 구분)
+const CORS_ALLOWED_ORIGINS = (process.env.CORS_ALLOWED_ORIGINS || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+app.use(
+  cors({
+    origin(origin, cb) {
+      if (!origin) return cb(null, true); // server-to-server / curl / 모바일 native
+      if (CORS_ALLOWED_ORIGINS.length === 0) return cb(null, true); // dev fallback
+      if (CORS_ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
+      console.warn(`[CORS] blocked origin: ${origin}`);
+      cb(new Error('Not allowed by CORS'));
+    },
+    credentials: true,
+  })
+);
+
 app.use(express.json());
+
+// Rate limit — 라우트 그룹별. scraper는 자체 토큰+쿨다운으로 제외
+app.use('/api/auth', authLimiter);
+app.use('/api', (req, res, next) => {
+  if (req.path.startsWith('/scraper/') || req.path.startsWith('/auth/')) return next();
+  return generalLimiter(req, res, next);
+});
 
 // Passport middleware
 const passport = require('passport');
@@ -71,17 +141,12 @@ app.post('/api/notifications/test', async (req, res) => {
 });
 
 // scraper는 외부 AI API quota를 소모하므로 동시 실행 락 + 쿨다운으로 보호한다
-const SCRAPER_COOLDOWN_MS = 60 * 1000; // 1분 — 연타 방어 + RSS/quota 보호 최소선
+const SCRAPER_COOLDOWN_MS = 30 * 60 * 1000; // 30분 — 매시 cron(60분 간격)과 양립, HTTP 연타 차단
 const SCRAPER_ADMIN_TOKEN = process.env.SCRAPER_ADMIN_TOKEN || '';
 let scraperRunning = false;
 let scraperLastRunAt = 0;
 let scraperLastStats = null; // 마지막 runScraper() 반환값
-
-if (!SCRAPER_ADMIN_TOKEN) {
-  console.warn(
-    '[보안 경고] SCRAPER_ADMIN_TOKEN 환경변수가 설정되지 않았습니다. /api/scraper/run 인증이 비활성화됩니다 (개발용).'
-  );
-}
+// SCRAPER_ADMIN_TOKEN 미설정 경고는 runSecuritySelfCheck()로 통합됨
 
 function requireAdminToken(req, res, next) {
   if (!SCRAPER_ADMIN_TOKEN) return next(); // 토큰 미설정 시 인증 우회 (개발 편의)
@@ -162,6 +227,29 @@ if (SCRAPER_CRON_ENABLED && cron.validate(SCRAPER_CRON)) {
   console.log('[Scraper] cron disabled by SCRAPER_CRON_ENABLED=false');
 }
 
+// 만료된 에어드랍 자동 강등 (매일 1회)
+const { demoteExpiredAirdrops } = require('./src/services/retention');
+const AIRDROP_RETENTION_CRON = process.env.AIRDROP_RETENTION_CRON || '0 3 * * *'; // 매일 03:00
+const AIRDROP_RETENTION_ENABLED = process.env.AIRDROP_RETENTION_ENABLED !== 'false';
+if (AIRDROP_RETENTION_ENABLED && cron.validate(AIRDROP_RETENTION_CRON)) {
+  cron.schedule(
+    AIRDROP_RETENTION_CRON,
+    () => {
+      demoteExpiredAirdrops().catch((err) =>
+        console.error('[Retention] cron run failed:', err.message || err)
+      );
+    },
+    { timezone: 'Asia/Seoul' }
+  );
+  console.log(`[Retention] cron scheduled: "${AIRDROP_RETENTION_CRON}" (KST)`);
+} else if (AIRDROP_RETENTION_ENABLED) {
+  console.warn(
+    `[Retention] invalid AIRDROP_RETENTION_CRON: "${AIRDROP_RETENTION_CRON}" — cron disabled`
+  );
+} else {
+  console.log('[Retention] cron disabled by AIRDROP_RETENTION_ENABLED=false');
+}
+
 // --- API Routes ---
 // Express 5 라우터에서 정적 path 매칭이 깨지는 케이스가 있어 신규 엔드포인트는 server에 직접 등록
 const authMiddleware = require('./middleware/authMiddleware');
@@ -183,8 +271,8 @@ const {
 // 사용자 계정 삭제
 app.delete('/api/user/account', authMiddleware, deleteAccount);
 
-// 사용자 제보
-app.post('/api/submissions', authMiddleware, createSubmission);
+// 사용자 제보 — POST에 더 엄격한 limit (스팸 방어)
+app.post('/api/submissions', submissionLimiter, authMiddleware, createSubmission);
 app.get('/api/submissions/mine', authMiddleware, listMySubmissions);
 
 // 관리자 — 제보 검토
@@ -202,6 +290,15 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/user', require('./routes/user'));
 app.use('/api/market', require('./routes/market'));
 
+// errorHandler 통합 검증용 라우트 — dev에서만 노출
+if (process.env.NODE_ENV !== 'production') {
+  app.get('/api/_debug/throw', () => {
+    const err = new Error('Sensitive internal: DB at mongodb://secret-host:27017');
+    err.status = 500;
+    throw err;
+  });
+}
+
 
 const PORT = process.env.PORT || 3000;
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/crypto_airdrop';
@@ -210,7 +307,8 @@ mongoose.connect(MONGODB_URI)
   .then(() => console.log('MongoDB Connected'))
   .catch(err => console.error('MongoDB connection error:', err));
 
-
+// 글로벌 에러 핸들러 — 모든 라우트 등록 후 마지막에 부착
+app.use(errorHandler);
 
 app.listen(PORT, () => {
   console.log(`Backend server running on port ${PORT}`);

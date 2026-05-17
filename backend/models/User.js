@@ -4,7 +4,9 @@ const userSchema = new mongoose.Schema({
   username: {
     type: String,
     required: true,
+    unique: true,
     trim: true,
+    lowercase: true, // 대소문자 차이로 중복 우회 방지 — 신규 등록부터 적용
   },
   email: {
     type: String,
