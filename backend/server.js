@@ -3,7 +3,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const helmet = require('helmet');
-const { Expo } = require('expo-server-sdk');
+// expo-server-sdk v6는 ESM-only — CommonJS에서 require 불가. 사용 시점에 dynamic import.
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const Airdrop = require('./models/Airdrop');
@@ -53,7 +53,13 @@ function runSecuritySelfCheck() {
 runSecuritySelfCheck();
 
 const app = express();
-const expo = new Expo();
+
+// expo-server-sdk v6 ESM 호환 — 최초 호출 시 한 번만 로드해 캐싱
+let _expoSdkPromise = null;
+function loadExpoSdk() {
+  if (!_expoSdkPromise) _expoSdkPromise = import('expo-server-sdk');
+  return _expoSdkPromise;
+}
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-key-that-is-long';
 
@@ -113,6 +119,8 @@ app.post('/api/users/push-token', async (req, res) => {
 
 app.post('/api/notifications/test', async (req, res) => {
   try {
+    const { Expo } = await loadExpoSdk();
+    const expo = new Expo();
     const users = await User.find({ push_token: { $exists: true, $ne: null } });
     const pushTokens = users.map(user => user.push_token);
     if (pushTokens.length === 0) return res.status(404).json({ message: 'No registered push tokens found.' });
@@ -227,6 +235,23 @@ if (SCRAPER_CRON_ENABLED && cron.validate(SCRAPER_CRON)) {
   console.log('[Scraper] cron disabled by SCRAPER_CRON_ENABLED=false');
 }
 
+// Draft 자동 수집 — Reddit/Telegram 커뮤니티에서 7일치 → AI 구조 추출 → 관리자 대기 큐
+// AI 호출 비용 절감 위해 6시간마다만 실행 (env로 비활성 가능)
+const DRAFT_COLLECT_CRON = process.env.DRAFT_COLLECT_CRON || '0 */6 * * *';
+const DRAFT_COLLECT_ENABLED = process.env.DRAFT_COLLECT_ENABLED !== 'false';
+if (DRAFT_COLLECT_ENABLED && cron.validate(DRAFT_COLLECT_CRON)) {
+  cron.schedule(DRAFT_COLLECT_CRON, () => {
+    runCollection('cron').catch((err) =>
+      console.error('[Draft Collect] cron run failed:', err.message || err)
+    );
+  });
+  console.log(`[Draft Collect] cron scheduled: "${DRAFT_COLLECT_CRON}"`);
+} else if (DRAFT_COLLECT_ENABLED) {
+  console.warn(`[Draft Collect] invalid cron expression: "${DRAFT_COLLECT_CRON}" — disabled`);
+} else {
+  console.log('[Draft Collect] cron disabled by DRAFT_COLLECT_ENABLED=false');
+}
+
 // 만료된 에어드랍 자동 강등 (매일 1회)
 const { demoteExpiredAirdrops } = require('./src/services/retention');
 const AIRDROP_RETENTION_CRON = process.env.AIRDROP_RETENTION_CRON || '0 3 * * *'; // 매일 03:00
@@ -267,6 +292,16 @@ const {
   adminUpdateAirdrop,
   adminDeleteAirdrop,
 } = require('./controllers/adminAirdropController');
+const {
+  listDrafts,
+  updateDraft,
+  approveDraft,
+  rejectDraft,
+  deleteDraft,
+  draftFromUrl,
+  triggerCollect,
+  runCollection,
+} = require('./controllers/adminDraftController');
 
 // 사용자 계정 삭제
 app.delete('/api/user/account', authMiddleware, deleteAccount);
@@ -284,6 +319,15 @@ app.post('/api/admin/submissions/:id/reject', authMiddleware, adminMiddleware, a
 app.post('/api/admin/airdrops', authMiddleware, adminMiddleware, adminCreateAirdrop);
 app.put('/api/admin/airdrops/:id', authMiddleware, adminMiddleware, adminUpdateAirdrop);
 app.delete('/api/admin/airdrops/:id', authMiddleware, adminMiddleware, adminDeleteAirdrop);
+
+// 관리자 — Draft 큐레이션 (커뮤니티 수집 → AI 추출 → 검토 → 승격)
+app.get('/api/admin/drafts', authMiddleware, adminMiddleware, listDrafts);
+app.patch('/api/admin/drafts/:id', authMiddleware, adminMiddleware, updateDraft);
+app.post('/api/admin/drafts/:id/approve', authMiddleware, adminMiddleware, approveDraft);
+app.post('/api/admin/drafts/:id/reject', authMiddleware, adminMiddleware, rejectDraft);
+app.delete('/api/admin/drafts/:id', authMiddleware, adminMiddleware, deleteDraft);
+app.post('/api/admin/drafts/from-url', authMiddleware, adminMiddleware, draftFromUrl);
+app.post('/api/admin/drafts/collect', authMiddleware, adminMiddleware, triggerCollect);
 
 app.use('/api/airdrops', require('./routes/airdrops'));
 app.use('/api/auth', require('./routes/auth'));

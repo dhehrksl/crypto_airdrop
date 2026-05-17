@@ -86,18 +86,36 @@ const HomeScreen = ({ navigation }) => {
       );
     }
 
-    const isClosingSoon = item.end_date && new Date(item.end_date) < new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
-    const endDate = item.end_date ? new Date(item.end_date).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' }) : '미정';
+    const now = Date.now();
+    const endMs = item.end_date ? new Date(item.end_date).getTime() : null;
+    const msToEnd = endMs ? endMs - now : null;
+    const isClosingSoon = msToEnd !== null && msToEnd > 0 && msToEnd < 3 * 24 * 60 * 60 * 1000;
+    const isExpired = msToEnd !== null && msToEnd <= 0;
+    const countdown = (() => {
+      if (msToEnd === null) return null;
+      if (isExpired) return '마감됨';
+      const d = Math.floor(msToEnd / (24 * 60 * 60 * 1000));
+      const h = Math.floor((msToEnd % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
+      if (d > 0) return `${d}일 ${h}시간 남음`;
+      const m = Math.floor((msToEnd % (60 * 60 * 1000)) / (60 * 1000));
+      return `${h}시간 ${m}분 남음`;
+    })();
+    const tasks = Array.isArray(item.tasks) ? item.tasks : [];
 
     return (
-      <TouchableOpacity 
+      <TouchableOpacity
         style={[styles.card, isClosingSoon && styles.cardClosingSoon]}
         onPress={() => navigation.navigate('Detail', { airdrop: item })}
         activeOpacity={0.7}
       >
         <View style={styles.cardContent}>
           <View style={styles.header}>
-            <Text style={styles.title} numberOfLines={1}>{item.title || '제목 없음'}</Text>
+            <View style={{ flex: 1, marginRight: 10 }}>
+              <Text style={styles.title} numberOfLines={2}>{item.title || '제목 없음'}</Text>
+              {!!item.tokenTicker && (
+                <Text style={styles.tickerText}>${item.tokenTicker}</Text>
+              )}
+            </View>
             <View style={styles.badgesContainer}>
               {item.is_confirmed && (
                 <View style={[styles.badge, styles.confirmedBadge]}>
@@ -109,14 +127,30 @@ const HomeScreen = ({ navigation }) => {
               </View>
             </View>
           </View>
-          <Text style={styles.description} numberOfLines={2}>
-            {item.description || '참여 방법에 대한 상세 정보를 확인하세요.'}
-          </Text>
+
+          {tasks.length > 0 ? (
+            <View style={styles.tasksBox}>
+              {tasks.slice(0, 3).map((t, i) => (
+                <View key={i} style={styles.taskRow}>
+                  <Text style={styles.taskBullet}>{i + 1}.</Text>
+                  <Text style={styles.taskText} numberOfLines={1}>{t}</Text>
+                </View>
+              ))}
+              {tasks.length > 3 && <Text style={styles.taskMore}>외 {tasks.length - 3}단계 …</Text>}
+            </View>
+          ) : (
+            <Text style={styles.description} numberOfLines={2}>
+              {item.description || '참여 방법에 대한 상세 정보를 확인하세요.'}
+            </Text>
+          )}
+
           <View style={styles.footer}>
             <View style={styles.tagContainer}>
-              {isClosingSoon && (
-                <View style={[styles.tag, styles.closingSoonTag]}>
-                  <Text style={[styles.tagText, { color: '#C2410C' }]}>🔥 마감 임박</Text>
+              {countdown && (
+                <View style={[styles.tag, isExpired ? styles.expiredTag : isClosingSoon ? styles.closingSoonTag : styles.countdownTag]}>
+                  <Text style={[styles.tagText, { color: isExpired ? '#64748B' : isClosingSoon ? '#C2410C' : '#0369A1' }]}>
+                    {isClosingSoon ? '🔥 ' : '⏱ '}{countdown}
+                  </Text>
                 </View>
               )}
               {item.category && (
@@ -124,15 +158,12 @@ const HomeScreen = ({ navigation }) => {
                   <Text style={[styles.tagText, { color: '#4338CA' }]}>{item.category}</Text>
                 </View>
               )}
-              {item.source && item.source.map((s, idx) => (
-                <View key={idx} style={styles.tag}>
-                  <Text style={styles.tagText}>{s}</Text>
+              {Array.isArray(item.chain) && item.chain.slice(0, 2).map((ch, idx) => (
+                <View key={`chain-${idx}`} style={[styles.tag, styles.chainTag]}>
+                  <Text style={[styles.tagText, { color: '#065F46' }]}>{ch}</Text>
                 </View>
               ))}
             </View>
-            <Text style={[styles.date, isClosingSoon && { color: '#EF4444', fontWeight: '700' }]}>
-              종료: {endDate}
-            </Text>
           </View>
         </View>
       </TouchableOpacity>
@@ -355,6 +386,51 @@ const styles = StyleSheet.create({
   },
   closingSoonTag: {
     backgroundColor: '#FFE4E6',
+  },
+  countdownTag: {
+    backgroundColor: '#E0F2FE',
+  },
+  expiredTag: {
+    backgroundColor: '#F1F5F9',
+  },
+  chainTag: {
+    backgroundColor: '#D1FAE5',
+  },
+  tickerText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#6366F1',
+    marginTop: 2,
+  },
+  tasksBox: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 12,
+  },
+  taskRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 4,
+  },
+  taskBullet: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#6366F1',
+    width: 18,
+  },
+  taskText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#334155',
+    lineHeight: 18,
+  },
+  taskMore: {
+    fontSize: 11,
+    color: '#94A3B8',
+    fontStyle: 'italic',
+    marginTop: 4,
+    marginLeft: 18,
   },
   categoryTag: {
     backgroundColor: '#EEF2FF',

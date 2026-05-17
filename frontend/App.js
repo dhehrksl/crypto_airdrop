@@ -3,7 +3,6 @@ import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'; // New import
-import axios from 'axios';
 import { Ionicons } from '@expo/vector-icons'; // For icons
 
 import { AuthProvider, AuthContext } from './src/context/AuthContext';
@@ -23,9 +22,6 @@ import DisclaimerGate from './src/components/DisclaimerGate';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator(); // New Tab Navigator
-
-// 실제 기기 테스트 시에는 본인 PC의 IP 주소로 변경해야 합니다.
-const BACKEND_URL = 'http://172.23.249.92:3000';
 
 
 const AppTabs = () => {
@@ -136,15 +132,20 @@ const AppNav = () => {
       ) : (
         // Auth Stack
         <Stack.Navigator>
-          <Stack.Screen 
-            name="Login" 
+          <Stack.Screen
+            name="Login"
             component={LoginScreen}
             options={{ headerShown: false }}
           />
-          <Stack.Screen 
-            name="Register" 
+          <Stack.Screen
+            name="Register"
             component={RegisterScreen}
             options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="Policy"
+            component={PolicyScreen}
+            options={{ headerShown: false, presentation: 'modal' }}
           />
         </Stack.Navigator>
       )}
