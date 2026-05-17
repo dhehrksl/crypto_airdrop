@@ -27,9 +27,28 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-web-browser",
-
+      "expo-web-browser"
     ],
-
+    "extra": {
+      "_comment_backend": "backendUrl을 명시하면 자동 감지를 덮어쓴다. 비워두면 Expo Go가 띄운 LAN IP를 자동 사용.",
+      "backendUrl": "",
+      "backendPort": 3000,
+      "google": {
+        "expoClientId": "",
+        "androidClientId": "",
+        "iosClientId": "",
+        "webClientId": ""
+      },
+      "_comment_admob": "AdMob 광고 단위 ID. dev에서는 test ID, production 빌드에는 실제 ID. 빈 값이면 광고 영역 미표시.",
+      "admob": {
+        "appIdAndroid": "",
+        "appIdIos": "",
+        "bannerAndroid": "",
+        "bannerIos": "",
+        "nativeAndroid": "",
+        "nativeIos": ""
+      },
+      "_comment_eas": "EAS 빌드 후 채워짐 — eas init 시 자동 생성"
+    }
   }
 }
