@@ -23,21 +23,22 @@ const DetailScreen = ({ route, navigation }) => {
 
   useEffect(() => {
     const fetchPrice = async () => {
-      // Use the tokenTicker from the airdrop data itself
       const ticker = airdrop.tokenTicker || (airdrop.projectName ? airdrop.projectName.toLowerCase().replace(/\s+/g, '-') : null);
-      if (ticker) {
-        setPriceLoading(true);
-        try {
-          const response = await getMarketPrice(ticker);
-          if (response.data) {
-            setPriceData(response.data);
-          }
-        } catch (error) {
-          console.error(`Error fetching price data for ${ticker}:`, error.message);
+      if (!ticker) return;
+      setPriceLoading(true);
+      try {
+        const response = await getMarketPrice(ticker);
+        // 백엔드가 ticker→coin id 매핑 실패 시 { unsupported: true } 반환 — 정상 시나리오로 처리
+        if (response.data && !response.data.unsupported) {
+          setPriceData(response.data);
+        } else {
           setPriceData(null);
-        } finally {
-          setPriceLoading(false);
         }
+      } catch (error) {
+        // 404/502 등 실제 에러도 사용자에게 노출하지 않음 (가격은 부가 정보)
+        setPriceData(null);
+      } finally {
+        setPriceLoading(false);
       }
     };
     fetchPrice();

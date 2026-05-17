@@ -1,11 +1,20 @@
 import React, { createContext, useState, useEffect } from 'react';
+import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
 import * as WebBrowser from 'expo-web-browser';
 import { useAuthRequest } from 'expo-auth-session/providers/google';
 import * as api from '../services/api'; // Import all api functions
 
 // This is necessary for the auth session to work properly on web and some native platforms
 WebBrowser.maybeCompleteAuthSession();
+
+// Google OAuth 클라이언트 ID — app.json의 expo.extra.google.* 또는 env에서 주입.
+// 미설정 시 useAuthRequest는 호출하되 promptAsync는 비활성화 (이메일 회원가입에 영향 X).
+const GOOGLE_CFG = (Constants.expoConfig?.extra ?? Constants.manifest?.extra ?? {}).google ?? {};
+const GOOGLE_READY = ['expoClientId', 'androidClientId', 'iosClientId', 'webClientId'].some(
+  (k) => GOOGLE_CFG[k]
+);
 
 export const AuthContext = createContext();
 
@@ -15,17 +24,17 @@ export const AuthProvider = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   // --- Google Social Login ---
+  // Hooks 규칙 상 항상 호출. 더미가 아닌 실제 값이 있을 때만 promptAsync 작동.
   const [request, response, promptAsync] = useAuthRequest({
-    // You need to create these IDs in your Google Cloud Console
-    // https://docs.expo.dev/guides/authentication/#google
-    expoClientId: 'YOUR_EXPO_CLIENT_ID.apps.googleusercontent.com',
-    androidClientId: 'YOUR_ANDROID_CLIENT_ID.apps.googleusercontent.com',
-    iosClientId: 'YOUR_IOS_CLIENT_ID.apps.googleusercontent.com',
-    webClientId: 'YOUR_WEB_CLIENT_ID.apps.googleusercontent.com',
+    expoClientId: GOOGLE_CFG.expoClientId,
+    androidClientId: GOOGLE_CFG.androidClientId,
+    iosClientId: GOOGLE_CFG.iosClientId,
+    webClientId: GOOGLE_CFG.webClientId,
   });
 
   useEffect(() => {
     const handleGoogleSignIn = async () => {
+      if (!GOOGLE_READY) return;
       if (response?.type === 'success') {
         const { id_token } = response.params;
         setIsLoading(true);
@@ -44,6 +53,10 @@ export const AuthProvider = ({ children }) => {
   }, [response]);
 
   const googleLogin = () => {
+    if (!GOOGLE_READY) {
+      Alert.alert('알림', 'Google 로그인이 아직 설정되지 않았습니다. 이메일로 가입해주세요.');
+      return;
+    }
     promptAsync();
   };
   // --- End Google Social Login ---

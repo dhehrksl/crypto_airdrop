@@ -4,12 +4,11 @@ const RSSParser = require('rss-parser');
 const Airdrop = require('../../models/Airdrop');
 const News = require('../../models/News');
 const User = require('../../models/User');
-const { Expo } = require('expo-server-sdk');
+// expo-server-sdk v6는 ESM-only — sendPushNotifications 내부에서 dynamic import.
 const { isBlockedSource } = require('../config/blockedSources');
 const { fetchSnapshotProposals } = require('./snapshotSource');
 // airdrops.io 스크래퍼는 ToS의 상업적 사용 금지 조항으로 제거됨.
 // 자체 큐레이션 + 사용자 제보 시스템으로 대체.
-const expo = new Expo();
 
 // 뉴스는 3일 보관 — 그 이상 된 항목은 자동 삭제 (앱 무게 + 신선도)
 const NEWS_RETENTION_DAYS = 3;
@@ -153,6 +152,8 @@ function evaluateNews(item) {
 async function sendPushNotifications(airdrop) {
   const users = await User.find({ push_token: { $exists: true, $ne: null } });
   if (users.length === 0) return;
+  const { Expo } = await import('expo-server-sdk');
+  const expo = new Expo();
   const messages = users.filter(u => Expo.isExpoPushToken(u.push_token)).map(u => ({
     to: u.push_token,
     sound: 'default',

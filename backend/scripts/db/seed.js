@@ -1,6 +1,7 @@
 require('dotenv').config();
+const path = require('path');
 const mongoose = require('mongoose');
-const Airdrop = require('./models/Airdrop');
+const Airdrop = require(path.resolve(__dirname, '..', '..', 'models', 'Airdrop'));
 
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/crypto_airdrop';
 
