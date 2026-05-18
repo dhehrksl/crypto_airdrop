@@ -4,7 +4,8 @@
 #
 # 참고:
 #   - free plan은 15분 idle 후 spin-down → in-process node-cron 멈춤(스크래핑 정지).
-#     매 시간 cron이 필수면 starter ($7/월) 권장. 또는 UptimeRobot으로 /health 5분 ping.
+#     UptimeRobot(무료)으로 /health 5분 ping해서 깨워두는 운영을 전제로 함.
+#     트래픽 늘면 plan: starter ($7/월)로 올려서 cron 신뢰성 확보.
 #   - MongoDB는 외부(Atlas) 사용. Render는 Mongo 호스팅 안 함.
 
 services:
@@ -12,7 +13,7 @@ services:
     name: crypto-airdrop-api
     runtime: node
     region: singapore        # 한국 사용자 기준 가장 가까운 free region. oregon/frankfurt도 가능.
-    plan: starter            # cron 보존을 위해 starter. free 사용 시 cron 신뢰성 떨어짐.
+    plan: free               # UptimeRobot 5분 ping 전제. cron 신뢰성 더 필요하면 starter로.
     rootDir: backend
     buildCommand: npm ci
     startCommand: npm start

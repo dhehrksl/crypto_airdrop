@@ -1,7 +1,7 @@
 # 백엔드 배포 가이드 — Render + MongoDB Atlas
 
 Expo 앱의 `app.json` `expo.extra.backendUrl`에 채워 넣을 HTTPS API URL을 만드는 절차.
-소요 시간: 30~60분. 비용: Render starter $7/월 + MongoDB Atlas M0 무료.
+소요 시간: 30~60분. **비용: 전부 무료** (Render Free + MongoDB Atlas M0 + UptimeRobot).
 
 ---
 
@@ -104,31 +104,43 @@ Atlas → Data Explorer → `users` 컬렉션 → 본인 문서 편집 → `isAd
 
 ---
 
-## 5. 비용 / 제한
+## 5. UptimeRobot — Free 플랜 cron 깨우기 (필수)
 
-| 항목 | Free | Starter ($7/월) |
+Free 플랜은 15분 동안 요청 없으면 sleep → 그 시간엔 in-process cron 안 돔.
+UptimeRobot 무료로 5분마다 `/health`에 ping 쏴서 깨워둠.
+
+1. https://uptimerobot.com 무료 가입
+2. **+ Add New Monitor**
+3. 설정:
+   - Monitor Type: **HTTP(s)**
+   - Friendly Name: `crypto-airdrop-api`
+   - URL: `https://crypto-airdrop-api.onrender.com/health`
+   - Monitoring Interval: **5 minutes** (무료 최대 빈도)
+4. Create Monitor
+
+> **한계**: 5분 ping이라 cron 0분 정각을 가끔 놓침. 사용자 많아져서 트래픽으로 항상 깨어 있으면 문제 없음. 출시 초기엔 데이터 1~2시간 늦는 경우 있어도 무료라 감수.
+
+## 6. 비용 / 제한
+
+| 항목 | Free (현재) | Starter ($7/월, 나중에 업그레이드) |
 |---|---|---|
-| 상시 실행 | ❌ 15분 idle 후 sleep | ✅ |
-| in-process cron | ❌ sleep 중 중단 | ✅ |
+| 상시 실행 | ❌ 15분 idle 후 sleep (UptimeRobot로 우회) | ✅ |
+| in-process cron | △ 5분 ping 사이엔 동작 | ✅ |
 | 메모리 | 512MB | 512MB |
 | CPU | 0.1 | 0.5 |
 | Build time | 500min/월 | 500min/월 |
 
-- `render.yaml`의 `plan: starter`는 cron 보존이 목적. Free로도 동작은 하지만 스크래퍼가 멈춤.
-- 그래도 free로 가고 싶으면:
-  1. `render.yaml`의 `plan: starter` → `plan: free`
-  2. https://uptimerobot.com 무료 가입 → 5분마다 `/health` ping
-  3. 단 — 무료에 cron 신뢰성을 100% 기대 X. 14분 idle 직전에만 깨우니까 cron 0분 정각을 놓칠 수 있음.
+**언제 starter로 올리나**: 사용자 늘어서 데이터 지연이 문제가 되거나, cron 정각 100% 보장이 필요할 때. 출시 초기엔 free로 충분.
 
 ---
 
-## 6. 로그/장애 대응
+## 7. 로그/장애 대응
 
 - Render Dashboard → 서비스 → **Logs** 탭에서 실시간 로그
 - `console.error` 출력은 자동 캡처
 - Sentry/Logtail 등 외부 모니터링 도입은 별도 작업
 
-## 7. 다음 단계
+## 8. 다음 단계
 
 - `JWT_SECRET` 6개월마다 회전(전체 사용자 재로그인 강제) — Render Dashboard에서 값 교체
 - Atlas M0 용량(512MB) 초과 임박 시 News retention 일수 축소(`pruneOldNews`의 `NEWS_RETENTION_DAYS`)
