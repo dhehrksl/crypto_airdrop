@@ -1,0 +1,71 @@
+# Render Blueprint — 백엔드 Web Service 1개.
+# 사용법: Render Dashboard → New + → Blueprint → 이 repo 연결.
+# 시크릿(sync: false)은 첫 배포 직전 Dashboard에서 입력하라고 Render가 프롬프트한다.
+#
+# 참고:
+#   - free plan은 15분 idle 후 spin-down → in-process node-cron 멈춤(스크래핑 정지).
+#     매 시간 cron이 필수면 starter ($7/월) 권장. 또는 UptimeRobot으로 /health 5분 ping.
+#   - MongoDB는 외부(Atlas) 사용. Render는 Mongo 호스팅 안 함.
+
+services:
+  - type: web
+    name: crypto-airdrop-api
+    runtime: node
+    region: singapore        # 한국 사용자 기준 가장 가까운 free region. oregon/frankfurt도 가능.
+    plan: starter            # cron 보존을 위해 starter. free 사용 시 cron 신뢰성 떨어짐.
+    rootDir: backend
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true         # main 브랜치 push 시 자동 배포
+    branch: main
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        # Render가 자동 주입 — 미지정해도 동작하지만 명시.
+        value: 10000
+
+      # ===== 시크릿 (Dashboard에서 직접 입력) =====
+      - key: JWT_SECRET
+        sync: false          # crypto.randomBytes(48).toString('base64url')
+      - key: SCRAPER_ADMIN_TOKEN
+        sync: false          # crypto.randomBytes(32).toString('hex')
+      - key: GEMINI_API_KEY
+        sync: false          # https://aistudio.google.com/apikey
+      - key: MONGODB_URI
+        sync: false          # mongodb+srv://...@cluster0.xxxx.mongodb.net/crypto_airdrop
+
+      # ===== CORS — 모바일 native는 origin 헤더 없어 자동 통과. 관리자 웹 등 추가하려면 여기에. =====
+      - key: CORS_ALLOWED_ORIGINS
+        value: ""
+
+      # ===== Google 로그인 (사용 시 실제 값으로 교체) =====
+      - key: GOOGLE_CLIENT_ID
+        value: dummy
+      - key: GOOGLE_CLIENT_SECRET
+        value: dummy
+
+      # ===== 스크래핑/AI =====
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash-lite
+      - key: SCRAPER_CRON
+        value: 0 * * * *
+      - key: SCRAPER_CRON_ENABLED
+        value: "true"
+      - key: DRAFT_COLLECT_CRON
+        value: 0 */6 * * *
+      - key: DRAFT_COLLECT_ENABLED
+        value: "true"
+      - key: AIRDROP_RETENTION_CRON
+        value: 0 3 * * *
+      - key: AIRDROP_RETENTION_ENABLED
+        value: "true"
+
+      # ===== Draft 소스 =====
+      - key: TELEGRAM_CHANNELS
+        value: airdropalert,airdrops_official,AirdropDetective
+      - key: DRAFT_REDDIT_ENABLED
+        value: "false"
+      - key: REDDIT_SUBREDDITS
+        value: airdrops,CryptoAirdrops

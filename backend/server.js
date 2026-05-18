@@ -115,6 +115,18 @@ app.use(
 
 app.use(express.json());
 
+// Health check — Render healthCheckPath / UptimeRobot 핑 대상. rate-limit 전에 둬서
+// 부하 상황에서도 200 유지. DB 상태도 함께 노출(undefined=초기, 1=connected).
+app.get('/health', (req, res) => {
+  const mongoState = mongoose.connection?.readyState;
+  res.json({
+    ok: true,
+    uptimeSec: Math.round(process.uptime()),
+    mongo: mongoState === 1 ? 'connected' : `state:${mongoState}`,
+    ts: new Date().toISOString(),
+  });
+});
+
 // Rate limit — 라우트 그룹별. scraper는 자체 토큰+쿨다운으로 제외
 app.use('/api/auth', authLimiter);
 app.use('/api', (req, res, next) => {
