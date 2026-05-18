@@ -74,6 +74,12 @@
 - [x] 광고 영역에 "광고" 라벨 표시 (광고법 준수)
 - [x] AdMob 정책 준수 설정 헬퍼 (`admobConfig.js`)
 - [x] News 컬렉션 3일 자동 retention
+- [x] app.json `name`/`slug`/`android.package`/`versionCode`/`bundleIdentifier` 채움 (2026-05-19 갱신)
+- [x] `/api/users/push-token`·`/api/notifications/test` 인증 보강 (2026-05-19)
+- [x] `JWT_SECRET` fallback 제거 — 모듈 로드 시 throw 강제
+- [x] 부팅 자가 진단 강화 — production에서 `JWT_SECRET`/`MONGODB_URI`/`SCRAPER_ADMIN_TOKEN` 누락 시 부팅 거부
+- [x] 백엔드 불필요한 expo-* dependencies 제거 (`expo-server-sdk`만 유지)
+- [x] policies.js / docs/*.md의 `[앱 이름]` placeholder → "크립토 에어드랍"
 
 ## 코드 외부 결정 사항
 

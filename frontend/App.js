@@ -6,6 +6,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'; // New
 import { Ionicons } from '@expo/vector-icons'; // For icons
 
 import { AuthProvider, AuthContext } from './src/context/AuthContext';
+import { initAdMob } from './src/services/admobConfig';
 import HomeScreen from './src/screens/HomeScreen';
 import DetailScreen from './src/screens/DetailScreen';
 import WebViewScreen from './src/screens/WebViewScreen';
@@ -162,6 +163,11 @@ const styles = StyleSheet.create({
 });
 
 export default function App() {
+  // AdMob SDK 초기화 — 앱 마운트 시 1회. SDK 미설치(Expo Go) 환경에서는 no-op.
+  useEffect(() => {
+    initAdMob();
+  }, []);
+
   return (
     <AuthProvider>
       <DisclaimerGate>

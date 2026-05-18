@@ -1,6 +1,11 @@
-// AdMob 광고 단위 ID + 정책 설정.
-// 실제 광고 표시는 react-native-google-mobile-ads 통합 + EAS Build 필요.
-// 현재 BannerAdComponent/NativeAdView는 placeholder — SDK 연결 시 이 모듈에서 ID 읽도록 사용.
+// AdMob 통합 — react-native-google-mobile-ads 래퍼.
+//
+// 1) 광고 단위 ID: dev 빌드는 항상 Google 테스트 ID (운영 ID 노출 시 정책 위반).
+//    production은 app.json expo.extra.admob.* 에서 읽음. 비어있으면 광고 미표시.
+// 2) SDK는 Expo Go에서 동작 X — EAS Build/dev-client 필요. 미설치 환경에서는
+//    requireSdk()가 null을 반환하고 BannerAdComponent가 placeholder로 fallback.
+// 3) UMP(EU 동의 UI)는 미구현. NPA 토글은 setNpa()로 동적 전환 가능 — 한국 PIPA
+//    동의 UI를 별도 도입하면 거기서 호출.
 
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
@@ -8,48 +13,76 @@ import Constants from 'expo-constants';
 const extra = Constants.expoConfig?.extra ?? Constants.manifest?.extra ?? {};
 const cfg = extra.admob || {};
 
-// Google AdMob 공식 테스트 ID — dev 빌드에서만 사용. 운영에 노출되면 정책 위반.
+// Google AdMob 공식 테스트 ID (https://developers.google.com/admob/android/test-ads)
+// dev 빌드에서만 사용. 운영 노출 시 정책 위반 → 계정 정지 위험.
 const TEST_IDS = {
   bannerAndroid: 'ca-app-pub-3940256099942544/6300978111',
   bannerIos: 'ca-app-pub-3940256099942544/2934735716',
-  nativeAndroid: 'ca-app-pub-3940256099942544/2247696110',
-  nativeIos: 'ca-app-pub-3940256099942544/3986624511',
+  // Native advanced는 RN 통합이 별도 작업이라 본 앱은 banner로 통일.
+  // 피드 중간 슬롯은 MEDIUM_RECTANGLE 배너 사용.
+  rectAndroid: 'ca-app-pub-3940256099942544/6300978111', // banner와 동일 — 테스트 환경
+  rectIos: 'ca-app-pub-3940256099942544/2934735716',
 };
 
-function pick(key) {
+function pickId(key) {
   if (__DEV__) return TEST_IDS[key];
-  // 운영: app.json의 expo.extra.admob에서 읽기. 비어있으면 광고 안 띄움.
-  if (Platform.OS === 'android') return cfg[`${key.replace(/Ios|Android/, '')}Android`] || '';
-  if (Platform.OS === 'ios') return cfg[`${key.replace(/Ios|Android/, '')}Ios`] || '';
+  const isAndroid = Platform.OS === 'android';
+  // app.json extra.admob에서 적절한 키 선택
+  if (key === 'bannerAndroid' || key === 'bannerIos') {
+    return (isAndroid ? cfg.bannerAndroid : cfg.bannerIos) || '';
+  }
+  if (key === 'rectAndroid' || key === 'rectIos') {
+    // 별도 rect Unit이 없으면 banner Unit으로 fallback
+    return (isAndroid ? (cfg.rectAndroid || cfg.bannerAndroid) : (cfg.rectIos || cfg.bannerIos)) || '';
+  }
   return '';
 }
 
-export const ADMOB_BANNER_UNIT_ID = pick(Platform.OS === 'android' ? 'bannerAndroid' : 'bannerIos');
-export const ADMOB_NATIVE_UNIT_ID = pick(Platform.OS === 'android' ? 'nativeAndroid' : 'nativeIos');
+export const ADMOB_BANNER_UNIT_ID = pickId(Platform.OS === 'android' ? 'bannerAndroid' : 'bannerIos');
+export const ADMOB_RECT_UNIT_ID = pickId(Platform.OS === 'android' ? 'rectAndroid' : 'rectIos');
 
-export const ADMOB_REQUEST_CONFIG = {
-  // 자녀 대상 콘텐츠 아님 — COPPA 준수
-  tagForChildDirectedTreatment: false,
-  // GDPR 동의 연령 미만 사용자 아님
-  tagForUnderAgeOfConsent: false,
-  // 13세 이상 일반 사용자 대상 (Teen) — 암호화폐 콘텐츠라 일반 등급으로 한정
-  maxAdContentRating: 'T',
-  // 사용자가 추적 동의 거부 시 true로 동적 전환 (UMP 통합 필요)
-  requestNonPersonalizedAdsOnly: false,
-};
+// SDK가 실제 설치되어 있을 때만 import. Expo Go에서는 null 반환 → 컴포넌트 placeholder fallback.
+let _sdkModule = null;
+let _sdkLoadAttempted = false;
+export function requireSdk() {
+  if (_sdkLoadAttempted) return _sdkModule;
+  _sdkLoadAttempted = true;
+  try {
+    _sdkModule = require('react-native-google-mobile-ads');
+  } catch (e) {
+    if (__DEV__) console.log('[AdMob] SDK not available (Expo Go?) — using placeholder');
+    _sdkModule = null;
+  }
+  return _sdkModule;
+}
 
-// react-native-google-mobile-ads 통합 시 호출용 — App.js 최상위에서 1회.
-// 실제 통합 코드:
-//
-//   import mobileAds, { MaxAdContentRating } from 'react-native-google-mobile-ads';
-//   import { ADMOB_REQUEST_CONFIG } from './services/admobConfig';
-//
-//   export async function initAdMob() {
-//     await mobileAds().setRequestConfiguration({
-//       maxAdContentRating: MaxAdContentRating.T,
-//       tagForChildDirectedTreatment: ADMOB_REQUEST_CONFIG.tagForChildDirectedTreatment,
-//       tagForUnderAgeOfConsent: ADMOB_REQUEST_CONFIG.tagForUnderAgeOfConsent,
-//       testDeviceIdentifiers: __DEV__ ? ['EMULATOR'] : [],
-//     });
-//     await mobileAds().initialize();
-//   }
+// 초기화 — App.js 최상위에서 1회. SDK 없으면 no-op.
+let _initialized = false;
+export async function initAdMob() {
+  if (_initialized) return;
+  const sdk = requireSdk();
+  if (!sdk) return;
+  try {
+    const { default: mobileAds, MaxAdContentRating } = sdk;
+    await mobileAds().setRequestConfiguration({
+      maxAdContentRating: MaxAdContentRating.T,         // 13세 이상 일반
+      tagForChildDirectedTreatment: false,              // COPPA: 자녀 대상 아님
+      tagForUnderAgeOfConsent: false,                   // GDPR 동의 연령 미만 아님
+      testDeviceIdentifiers: __DEV__ ? ['EMULATOR'] : [],
+    });
+    await mobileAds().initialize();
+    _initialized = true;
+    if (__DEV__) console.log('[AdMob] initialized');
+  } catch (e) {
+    console.warn('[AdMob] initialize failed:', e?.message || e);
+  }
+}
+
+// NPA(non-personalized ads) 토글 — 동의 거부 사용자에 대해 BannerAd에 requestOptions로 전달.
+let _npaEnabled = false;
+export function setNpa(enabled) {
+  _npaEnabled = !!enabled;
+}
+export function getRequestOptions() {
+  return _npaEnabled ? { requestNonPersonalizedAdsOnly: true } : {};
+}

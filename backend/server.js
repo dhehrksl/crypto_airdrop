@@ -31,12 +31,39 @@ function runSecuritySelfCheck() {
     warnings.push('CORS_ALLOWED_ORIGINS 미설정 — 개발 모드 fallback으로 모든 origin 허용');
   }
 
-  if (KNOWN_WEAK_JWT.includes(process.env.JWT_SECRET || '')) {
-    warnings.push('JWT_SECRET이 알려진 기본/약한 값입니다. crypto.randomBytes(48).toString("base64url")로 갱신 권장.');
+  const jwtSecret = process.env.JWT_SECRET || '';
+  if (KNOWN_WEAK_JWT.includes(jwtSecret)) {
+    if (isProd) {
+      fatals.push('JWT_SECRET이 미설정 또는 약한 기본값입니다 (production 필수). crypto.randomBytes(48).toString("base64url")로 갱신.');
+    } else {
+      warnings.push('JWT_SECRET이 알려진 기본/약한 값입니다. crypto.randomBytes(48).toString("base64url")로 갱신 권장.');
+    }
+  } else if (jwtSecret.length < 32) {
+    if (isProd) {
+      fatals.push(`JWT_SECRET 길이가 ${jwtSecret.length}자로 짧습니다 (32자 이상 필요).`);
+    } else {
+      warnings.push(`JWT_SECRET 길이가 ${jwtSecret.length}자로 권장(32자 이상)에 못 미칩니다.`);
+    }
+  }
+
+  if (!process.env.MONGODB_URI) {
+    if (isProd) {
+      fatals.push('MONGODB_URI 미설정 (production 필수). localhost fallback은 운영에 사용 불가.');
+    } else {
+      warnings.push('MONGODB_URI 미설정 — 개발 모드 fallback(localhost)으로 연결 시도.');
+    }
+  }
+
+  if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY === 'YOUR_GEMINI_API_KEY_HERE') {
+    warnings.push('GEMINI_API_KEY 미설정 — scraper/draftExtractor가 호출되면 실패합니다.');
   }
 
   if (!process.env.SCRAPER_ADMIN_TOKEN) {
-    warnings.push('SCRAPER_ADMIN_TOKEN 미설정 — /api/scraper/run 인증이 비활성화됩니다 (개발용).');
+    if (isProd) {
+      fatals.push('SCRAPER_ADMIN_TOKEN 미설정 (production 필수). HTTP /api/scraper/run이 무인증 노출됩니다.');
+    } else {
+      warnings.push('SCRAPER_ADMIN_TOKEN 미설정 — /api/scraper/run 인증이 비활성화됩니다 (개발용).');
+    }
   }
 
   if (isProd && process.env.GOOGLE_CLIENT_ID === 'dummy') {
@@ -61,7 +88,8 @@ function loadExpoSdk() {
   return _expoSdkPromise;
 }
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-key-that-is-long';
+// JWT_SECRET 검증은 authMiddleware/authController에서 require 시점에 throw로 강제됨.
+// 여기서는 따로 변수 보관 안 함 — server.js는 직접 sign/verify를 안 함.
 
 // ===== 보안 미들웨어 =====
 // helmet — 표준 보안 헤더. API-only라 CSP는 비활성
@@ -102,11 +130,16 @@ app.use(passport.initialize());
 
 // --- Other API Routes ---
 
-app.post('/api/users/push-token', async (req, res) => {
+// 인증 미들웨어는 라우터 등록부 아래에서도 쓰이지만, 위쪽 엔드포인트들이 먼저 필요해 여기서 require.
+const _authMiddlewareEarly = require('./middleware/authMiddleware');
+const _adminMiddlewareEarly = require('./middleware/adminMiddleware');
+
+// push token 등록 — body의 userId 신뢰 X. JWT의 req.user.id로만 본인 토큰 갱신.
+app.post('/api/users/push-token', _authMiddlewareEarly, async (req, res) => {
   try {
-    const { token, userId } = req.body;
-    if (!token || !userId) return res.status(400).json({ error: 'Token and userId are required' });
-    const user = await User.findById(userId);
+    const { token } = req.body;
+    if (!token) return res.status(400).json({ error: 'Token is required' });
+    const user = await User.findById(req.user.id);
     if (!user) return res.status(404).json({ error: 'User not found' });
     user.push_token = token;
     await user.save();
@@ -117,7 +150,12 @@ app.post('/api/users/push-token', async (req, res) => {
   }
 });
 
-app.post('/api/notifications/test', async (req, res) => {
+// 테스트 푸시 — 운영에서는 비활성, dev에서도 admin 전용.
+// 인증 없이 노출되면 누구나 전체 사용자에게 푸시 발송 가능 (스팸/abuse).
+app.post('/api/notifications/test', _authMiddlewareEarly, _adminMiddlewareEarly, async (req, res) => {
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(404).json({ error: 'Not Found' });
+  }
   try {
     const { Expo } = await loadExpoSdk();
     const expo = new Expo();

@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "frontend",
-    "slug": "frontend",
+    "name": "크립토 에어드랍",
+    "slug": "crypto-airdrop",
     "scheme": "cryptoairdrop",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -14,23 +14,36 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.dhehrksl.cryptoairdrop"
     },
     "android": {
+      "package": "com.dhehrksl.cryptoairdrop",
+      "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": false
+      "edgeToEdgeEnabled": false,
+      "permissions": [
+        "android.permission.POST_NOTIFICATIONS"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-3940256099942544~3347511713",
+          "iosAppId": "ca-app-pub-3940256099942544~1458002511"
+        }
+      ]
     ],
     "extra": {
-      "_comment_backend": "backendUrl을 명시하면 자동 감지를 덮어쓴다. 비워두면 Expo Go가 띄운 LAN IP를 자동 사용.",
+      "_comment_backend": "backendUrl을 명시하면 자동 감지를 덮어쓴다. 비워두면 Expo Go가 띄운 LAN IP를 자동 사용. 운영 빌드는 https://api.example.com 형태로 입력.",
       "backendUrl": "",
       "backendPort": 3000,
       "google": {
