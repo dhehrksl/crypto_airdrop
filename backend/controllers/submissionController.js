@@ -74,7 +74,7 @@ const adminApproveSubmission = async (req, res) => {
       title: sub.title,
       description: sub.description,
       official_link: sub.official_link,
-      trust_score: 75, // 어드민 승인 기본값
+      trend_score: 75, // 어드민 승인 기본값
       is_confirmed: true,
       is_airdrop: true,
       is_scam: false,

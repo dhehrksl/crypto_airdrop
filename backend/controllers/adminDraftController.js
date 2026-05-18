@@ -39,7 +39,7 @@ const updateDraft = async (req, res) => {
     if (d.status !== 'pending') {
       return res.status(400).json({ msg: '이미 처리된 항목입니다.' });
     }
-    const allowed = ['title', 'description', 'official_link', 'tokenTicker', 'tasks', 'end_date', 'category', 'chain', 'trust_score'];
+    const allowed = ['title', 'description', 'official_link', 'tokenTicker', 'tasks', 'end_date', 'category', 'chain', 'trend_score'];
     for (const key of allowed) {
       if (!(key in req.body)) continue;
       const v = req.body[key];
@@ -50,9 +50,9 @@ const updateDraft = async (req, res) => {
       } else if (key === 'end_date') {
         const date = v ? new Date(v) : null;
         d.end_date = date && !isNaN(date.getTime()) ? date : undefined;
-      } else if (key === 'trust_score') {
+      } else if (key === 'trend_score') {
         const n = Number(v);
-        if (Number.isFinite(n)) d.trust_score = Math.min(100, Math.max(0, n));
+        if (Number.isFinite(n)) d.trend_score = Math.min(100, Math.max(0, n));
       } else {
         d[key] = v === '' || v === null ? undefined : (typeof v === 'string' ? v.trim() : v);
       }
@@ -92,7 +92,7 @@ const approveDraft = async (req, res) => {
       end_date: d.end_date,
       category: d.category,
       chain: Array.isArray(d.chain) && d.chain.length > 0 ? d.chain : undefined,
-      trust_score: d.trust_score || 70,
+      trend_score: d.trend_score || 70,
       is_confirmed: true, // 관리자 승인 = 공식 확정 표시
       is_airdrop: true,
       is_scam: false,

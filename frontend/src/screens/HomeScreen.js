@@ -19,7 +19,7 @@ import NativeAdView from '../components/NativeAdView';
 const SORT_OPTIONS = [
   { key: 'latest', label: '최신순' },
   { key: 'ending_soon', label: '마감임박순' },
-  { key: 'trust_score', label: '매칭도순' },
+  { key: 'trend_score', label: '트렌드순' },
 ];
 
 async function registerForPushNotificationsAsync(userId) {
@@ -122,8 +122,8 @@ const HomeScreen = ({ navigation }) => {
                   <Text style={styles.badgeText}>✔ 공식</Text>
                 </View>
               )}
-              <View style={[styles.badge, { backgroundColor: getScoreColor(Number(item.trust_score) || 0) }]}>
-                <Text style={styles.badgeText}>{item.trust_score || 0}%</Text>
+              <View style={[styles.badge, { backgroundColor: getScoreColor(Number(item.trend_score) || 0) }]}>
+                <Text style={styles.badgeText}>{item.trend_score || 0}%</Text>
               </View>
             </View>
           </View>
@@ -173,7 +173,7 @@ const HomeScreen = ({ navigation }) => {
   const getScoreColor = (score) => {
     if (score >= 90) return '#10B981'; // Success Green
     if (score >= 80) return '#F59E0B'; // Warning Orange
-    return '#EF4444'; // Error Red
+    return '#94A3B8'; // Neutral Gray (Trend index doesn't have "Error")
   };
 
   const renderListHeader = () => (

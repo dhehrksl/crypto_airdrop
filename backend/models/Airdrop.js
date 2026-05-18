@@ -21,7 +21,7 @@ const airdropSchema = new mongoose.Schema({
     type: String,
     trim: true,
   },
-  trust_score: {
+  trend_score: {
     type: Number,
     required: true,
     min: 0,
@@ -72,7 +72,7 @@ const airdropSchema = new mongoose.Schema({
 });
 
 // 검색 성능을 위한 인덱스 추가
-airdropSchema.index({ trust_score: -1 });
+airdropSchema.index({ trend_score: -1 });
 airdropSchema.index({ created_at: -1 });
 airdropSchema.index({ end_date: 1 });
 airdropSchema.index({ is_confirmed: -1 });

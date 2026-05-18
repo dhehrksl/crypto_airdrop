@@ -14,7 +14,7 @@ const draftSchema = new mongoose.Schema({
   end_date: { type: Date },
   category: { type: String, trim: true, maxlength: 60 },
   chain: { type: [String], default: undefined },
-  trust_score: { type: Number, min: 0, max: 100, default: 70 },
+  trend_score: { type: Number, min: 0, max: 100, default: 70 },
   is_scam_suspect: { type: Boolean, default: false }, // AI가 스캠 의심으로 표시
 
   // 원본 추적

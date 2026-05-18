@@ -58,9 +58,9 @@ const DisclaimerGate = ({ children, onShowPolicy }) => {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>📊 "AI 분석 매칭도"</Text>
+          <Text style={styles.sectionTitle}>📊 "트렌드 지수"</Text>
           <Text style={styles.bullet}>
-            • 자동 알고리즘이 산출하는 참고 지표이며, 수익률·진위 여부를 보증하지 않습니다.
+            • 데이터상의 언급량과 발생 빈도를 기반으로 산출된 지표이며, 신뢰도나 수익률을 보증하지 않습니다.
           </Text>
         </View>
 

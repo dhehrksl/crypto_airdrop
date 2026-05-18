@@ -76,7 +76,7 @@ Respond ONLY with JSON (no markdown):
       "chain": ["<예: Ethereum, Solana — 모르면 빈 배열>"],
       "end_date": "<ISO 8601 — 본문에 마감일 명시되어 있으면 추출, 모르면 null>",
       "official_link": "<참여 가능한 공식 사이트 URL. 본문에서 공식 도메인 우선 추출. 없으면 input link>",
-      "trust_score": <0~100 정수. 명확한 단계+공식링크+활성기간이면 80+, 추측성/불완전이면 50~70>
+      "trend_score": <0~100 정수. 명확한 단계+공식링크+활성기간이면 80+, 추측성/불완전이면 50~70>
     }
   ]
 }
@@ -103,8 +103,8 @@ RULES — tasks 추출:
   - 단계가 1개 이하로만 추론되면 is_airdrop=false (참여 정보 부족)
 
 RULES — 스캠 가드:
-  - "프라이빗 키 입력", "시드 구문 제공", "1 ETH 보내면 2 ETH 보냄" → is_scam_suspect=true, trust_score=0
-  - 정체 불명 사이트 도메인 (signdr0p.xyz 등 유사 도메인) → is_scam_suspect=true, trust_score<30
+  - "프라이빗 키 입력", "시드 구문 제공", "1 ETH 보내면 2 ETH 보냄" → is_scam_suspect=true, trend_score=0
+  - 정체 불명 사이트 도메인 (signdr0p.xyz 등 유사 도메인) → is_scam_suspect=true, trend_score<30
 
 Return EXACTLY ${batch.length} results.
 `.trim();
@@ -165,7 +165,7 @@ async function saveDraft(item, ai) {
     end_date: undefined,
     category: ai.category ? String(ai.category).trim().slice(0, 60) : undefined,
     chain: Array.isArray(ai.chain) && ai.chain.length > 0 ? ai.chain.map((c) => String(c).trim()).filter(Boolean) : undefined,
-    trust_score: Number.isFinite(Number(ai.trust_score)) ? Math.min(100, Math.max(0, Number(ai.trust_score))) : 70,
+    trend_score: Number.isFinite(Number(ai.trend_score)) ? Math.min(100, Math.max(0, Number(ai.trend_score))) : 70,
     is_scam_suspect: !!ai.is_scam_suspect,
     source_name: item.sourceName || 'unknown',
     source_url: item.link,

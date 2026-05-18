@@ -69,19 +69,29 @@ const DetailScreen = ({ route, navigation }) => {
 
   const handleOpenWebView = () => {
     if (airdrop.official_link) {
-      navigation.navigate('WebView', {
-        url: airdrop.official_link,
-        title: airdrop.title || airdrop.projectName
-      });
+      Alert.alert(
+        "외부 사이트 이동",
+        "정보 확인을 위해 외부 사이트로 이동합니다. 에어드랍 참여 시 절대로 개인키나 시드 구문을 공유하지 마십시오. 사기 및 해킹에 주의하시기 바랍니다.",
+        [
+          { text: "취소", style: "cancel" },
+          { 
+            text: "이동", 
+            onPress: () => navigation.navigate('WebView', {
+              url: airdrop.official_link,
+              title: airdrop.title || airdrop.projectName
+            }) 
+          }
+        ]
+      );
     } else {
       Alert.alert('오류', '참여 링크를 찾을 수 없습니다.');
     }
   };
 
   const getScoreColor = (score) => {
-    if (score >= 90) return '#10B981';
-    if (score >= 80) return '#F59E0B';
-    return '#EF4444';
+    if (score >= 90) return '#10B981'; // Green (Active)
+    if (score >= 80) return '#F59E0B'; // Orange (Trending)
+    return '#94A3B8'; // Neutral Gray
   };
 
   const endDate = airdrop.end_date 
@@ -112,9 +122,9 @@ const DetailScreen = ({ route, navigation }) => {
             <Text style={styles.closeButtonText}>✕</Text>
           </TouchableOpacity>
           {airdrop.is_airdrop ? (
-            <View style={[styles.scoreCircle, { borderColor: getScoreColor(airdrop.trust_score) }]}>
-              <Text style={[styles.scoreValue, { color: getScoreColor(airdrop.trust_score) }]}>{airdrop.trust_score || 0}</Text>
-              <Text style={styles.scoreLabel}>AI 매칭도</Text>
+            <View style={[styles.scoreCircle, { borderColor: getScoreColor(airdrop.trend_score) }]}>
+              <Text style={[styles.scoreValue, { color: getScoreColor(airdrop.trend_score) }]}>{airdrop.trend_score || 0}</Text>
+              <Text style={styles.scoreLabel}>트렌드 지수</Text>
             </View>
           ) : (
             <View style={[styles.scoreCircle, styles.newsBadge]}>

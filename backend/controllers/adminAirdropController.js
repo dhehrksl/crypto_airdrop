@@ -16,7 +16,7 @@ const adminCreateAirdrop = async (req, res) => {
       category,
       chain,
       end_date,
-      trust_score,
+      trend_score,
       is_confirmed,
       tokenTicker,
     } = req.body;
@@ -37,7 +37,7 @@ const adminCreateAirdrop = async (req, res) => {
       title: String(title).trim(),
       description: String(description).trim(),
       official_link: String(official_link).trim(),
-      trust_score: Number.isFinite(Number(trust_score)) ? Math.min(100, Math.max(0, Number(trust_score))) : 75,
+      trend_score: Number.isFinite(Number(trend_score)) ? Math.min(100, Math.max(0, Number(trend_score))) : 75,
       is_confirmed: !!is_confirmed,
       is_airdrop: true,
       is_scam: false,
@@ -78,7 +78,7 @@ const adminUpdateAirdrop = async (req, res) => {
       }
     }
 
-    const allowed = ['title', 'description', 'official_link', 'category', 'chain', 'end_date', 'trust_score', 'is_confirmed', 'tokenTicker'];
+    const allowed = ['title', 'description', 'official_link', 'category', 'chain', 'end_date', 'trend_score', 'is_confirmed', 'tokenTicker'];
     for (const key of allowed) {
       if (!(key in req.body)) continue;
       const v = req.body[key];
@@ -91,9 +91,9 @@ const adminUpdateAirdrop = async (req, res) => {
         if (!isNaN(d.getTime())) a.end_date = d;
       } else if (key === 'chain') {
         a.chain = Array.isArray(v) ? v : [String(v).trim()];
-      } else if (key === 'trust_score') {
+      } else if (key === 'trend_score') {
         const n = Number(v);
-        if (Number.isFinite(n)) a.trust_score = Math.min(100, Math.max(0, n));
+        if (Number.isFinite(n)) a.trend_score = Math.min(100, Math.max(0, n));
       } else if (key === 'is_confirmed') {
         a.is_confirmed = !!v;
       } else {

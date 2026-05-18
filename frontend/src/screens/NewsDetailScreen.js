@@ -19,10 +19,20 @@ const NewsDetailScreen = ({ route, navigation }) => {
 
   const handleOpenWebView = () => {
     if (news.official_link) {
-      navigation.navigate('WebView', {
-        url: news.official_link,
-        title: news.title || '기사 원문',
-      });
+      Alert.alert(
+        "외부 사이트 이동",
+        "기사 원문 확인을 위해 외부 언론사 사이트로 이동합니다. 외부 사이트의 콘텐츠 및 광고에 주의하십시오.",
+        [
+          { text: "취소", style: "cancel" },
+          { 
+            text: "이동", 
+            onPress: () => navigation.navigate('WebView', {
+              url: news.official_link,
+              title: news.title || '기사 원문',
+            }) 
+          }
+        ]
+      );
     } else {
       Alert.alert('오류', '원문 링크를 찾을 수 없습니다.');
     }

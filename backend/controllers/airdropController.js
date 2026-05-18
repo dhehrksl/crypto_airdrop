@@ -22,13 +22,13 @@ const getAirdrops = async (req, res) => {
 
     let sortQuery = { created_at: -1 };
     if (sort === 'ending_soon') sortQuery = { end_date: 1 };
-    else if (sort === 'trust_score') sortQuery = { trust_score: -1 };
+    else if (sort === 'trend_score') sortQuery = { trend_score: -1 };
 
     const filterQuery = {
       $and: [
         { $or: [{ is_airdrop: true }, { is_airdrop: { $exists: false } }] },
         { is_scam: false },
-        { trust_score: { $gte: 20 } },
+        { trend_score: { $gte: 20 } },
         { $or: [
             { end_date: { $gte: new Date() } },
             { end_date: { $exists: false } },

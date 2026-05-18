@@ -37,7 +37,7 @@ const AdminScreen = ({ navigation }) => {
   // 직접 추가 폼
   const [c, setC] = useState({
     title: '', description: '', official_link: '', category: '', chain: '',
-    end_date: '', trust_score: '75', is_confirmed: true,
+    end_date: '', trend_score: '75', is_confirmed: true,
   });
 
   const fetchPending = useCallback(async () => {
@@ -183,11 +183,11 @@ const AdminScreen = ({ navigation }) => {
         category: c.category.trim() || undefined,
         chain: c.chain.trim() || undefined,
         end_date: c.end_date.trim() || undefined,
-        trust_score: c.trust_score,
+        trend_score: c.trend_score,
         is_confirmed: !!c.is_confirmed,
       });
       Alert.alert('완료', '에어드랍이 추가되었습니다.');
-      setC({ title: '', description: '', official_link: '', category: '', chain: '', end_date: '', trust_score: '75', is_confirmed: true });
+      setC({ title: '', description: '', official_link: '', category: '', chain: '', end_date: '', trend_score: '75', is_confirmed: true });
     } catch (e) {
       Alert.alert('오류', e?.response?.data?.msg || '저장 실패');
     }
@@ -219,8 +219,8 @@ const AdminScreen = ({ navigation }) => {
     <View key={d._id} style={styles.card}>
       <View style={styles.draftHeader}>
         <Text style={styles.cardTitle} numberOfLines={2}>{d.title}</Text>
-        <View style={[styles.scoreChip, { backgroundColor: d.trust_score >= 80 ? '#10B981' : d.trust_score >= 60 ? '#F59E0B' : '#EF4444' }]}>
-          <Text style={styles.scoreChipText}>{d.trust_score}%</Text>
+        <View style={[styles.scoreChip, { backgroundColor: d.trend_score >= 80 ? '#10B981' : d.trend_score >= 60 ? '#F59E0B' : '#EF4444' }]}>
+          <Text style={styles.scoreChipText}>{d.trend_score}%</Text>
         </View>
       </View>
       <Text style={styles.cardMeta}>
@@ -344,7 +344,7 @@ const AdminScreen = ({ navigation }) => {
           <CFormField label="카테고리" value={c.category} onChange={(v) => setC({ ...c, category: v })} />
           <CFormField label="체인" value={c.chain} onChange={(v) => setC({ ...c, chain: v })} />
           <CFormField label="마감일 (YYYY-MM-DD)" value={c.end_date} onChange={(v) => setC({ ...c, end_date: v })} />
-          <CFormField label="매칭도 (0-100)" value={c.trust_score} onChange={(v) => setC({ ...c, trust_score: v.replace(/[^0-9]/g, '') })} keyboardType="number-pad" />
+          <CFormField label="트렌드 지수 (0-100)" value={c.trend_score} onChange={(v) => setC({ ...c, trend_score: v.replace(/[^0-9]/g, '') })} keyboardType="number-pad" />
           <TouchableOpacity style={styles.checkRow} onPress={() => setC({ ...c, is_confirmed: !c.is_confirmed })}>
             <View style={[styles.checkbox, c.is_confirmed && styles.checkboxOn]}>
               {c.is_confirmed && <Text style={styles.checkmark}>✓</Text>}

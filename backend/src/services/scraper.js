@@ -252,7 +252,7 @@ async function saveAiResult(item, aiResult) {
         (check.parsedEndDate ? `, end_date=${check.parsedEndDate.toISOString()}` : '') +
         `)`
     );
-    aiResult = { ...aiResult, is_airdrop: false, trust_score: 0 };
+    aiResult = { ...aiResult, is_airdrop: false, trend_score: 0 };
   }
 
   if (aiResult.is_airdrop) {
@@ -260,7 +260,7 @@ async function saveAiResult(item, aiResult) {
       title: aiResult.title,
       description: aiResult.description,
       official_link: aiResult.official_link || item.link,
-      trust_score: aiResult.trust_score || 0,
+      trend_score: aiResult.trend_score || 0,
       is_confirmed: aiResult.is_confirmed || false,
       is_airdrop: true,
       is_scam: aiResult.is_scam,
@@ -278,8 +278,8 @@ async function saveAiResult(item, aiResult) {
     );
     // 같은 unique_hash가 휴리스틱 단계에서 News로 먼저 저장됐을 수 있음 — 이중 노출 방지
     await News.deleteOne({ unique_hash: { $eq: item.id } });
-    if (updateData.trust_score >= 90) await sendPushNotifications(newA);
-    console.log(`Saved Airdrop: ${aiResult.title} (Score: ${aiResult.trust_score})`);
+    if (updateData.trend_score >= 90) await sendPushNotifications(newA);
+    console.log(`Saved Airdrop: ${aiResult.title} (Score: ${aiResult.trend_score})`);
   } else {
     const newsData = {
       title: aiResult.title,
@@ -303,83 +303,43 @@ function buildBatchPrompt(batch) {
   const inputs = batch.map((item, idx) => ({
     idx,
     title: item.title,
-    // 토큰 절약 — 본문은 800자까지만
-    content: (item.content || '').slice(0, 800),
+    // 토큰 절약 — 본문은 600자까지만 (요약용)
+    content: (item.content || '').slice(0, 600),
     link: item.link,
   }));
   const todayISO = new Date().toISOString().slice(0, 10);
   return `
-You are a cryptocurrency airdrop analyst. Today's date is ${todayISO}.
-Analyze the ${batch.length} articles in the input below.
-For each article: (1) decide if it is an actionable, currently-claimable airdrop CAMPAIGN that users can participate in,
-(2) detect scams, (3) translate title and description into Korean.
+You are a cryptocurrency data aggregator and social trend analyst. Today's date is ${todayISO}.
+Analyze the ${batch.length} news items provided. 
+Your goal is to extract metadata and determine if an item relates to an active airdrop campaign.
 
-Input articles (JSON):
-${JSON.stringify(inputs, null, 2)}
-
-Respond ONLY with a JSON object with this EXACT structure (no markdown, no explanation):
+Respond ONLY with a JSON object with this EXACT structure:
 {
   "results": [
     {
       "idx": <integer matching input idx>,
       "is_airdrop": <boolean>,
       "is_scam": <boolean>,
-      "title": "<한국어로 번역된 제목>",
-      "description": "<한국어로 정확히 3문장 요약. 에어드랍이면 참여 방법/조건/마감 위주, 뉴스면 핵심 사실 위주>",
-      "trust_score": <integer 0-100, 0 if scam>,
+      "title": "<Short, neutral Korean title>",
+      "description": "<VERY SHORT Korean context, exactly ONE sentence. e.g. '특정 프로젝트의 새로운 참여 캠페인이 소셜 미디어에서 언급되었습니다.'>",
+      "trend_score": <integer 0-100, representing social mention frequency and hype>,
       "official_link": "<best official URL, fall back to input link if unknown>",
       "end_date": "<ISO 8601 datetime or null>"
     }
   ]
 }
 
+=== LEGAL SAFETY RULES (CRITICAL) ===
+1. DO NOT translate or re-publish the full article content. 
+2. The "description" MUST be a neutral "context" statement in ONE sentence. 
+3. DO NOT give financial advice. Do not use words like "Trustworthy", "Invest", "Good opportunity".
+4. "trend_score" represents how much people are talking about this (Social Buzz), NOT our trust in the project.
+
 === STRICT RULES FOR is_airdrop ===
-Set is_airdrop=true ONLY when ALL of these hold:
-  (a) The article is about a SPECIFIC airdrop campaign (named project + token or points program).
-  (b) The campaign is currently LIVE, OPEN FOR SIGN-UP, or starts in the near future
-      (claim window or eligibility window NOT yet closed — relative to today ${todayISO}).
-  (c) The article tells the reader concrete steps to participate (e.g. connect wallet, complete quests,
-      bridge funds, hold a token, register on a site).
+Set is_airdrop=true ONLY when the article discusses a specific, currently active or upcoming token/points campaign with participation steps.
 
-=== TEMPORAL CHECK (very important) ===
-Before setting is_airdrop=true, do a temporal sanity check:
-  - If the article describes events in PAST TENSE ("airdrop was distributed", "tokens were claimed",
-    "snapshot was taken", "claim period ended"), set is_airdrop=false.
-  - If the article references a year/month that is in the PAST relative to today (${todayISO}) as the
-    distribution/claim time, set is_airdrop=false. Example: today is 2026; an article about a "2024
-    airdrop distribution" is news, not an actionable campaign.
-  - Even if the article tells you HOW the campaign worked, if the campaign already ended, it is news.
-  - When end_date can be inferred, use it. If end_date < today, is_airdrop MUST be false.
-
-Set is_airdrop=FALSE in ALL of these cases (these are news, not actionable airdrops):
-  - Article reports on the AFTERMATH of an airdrop that already happened
-    (token launch, post-distribution price movement, market reaction, value drop/surge after claim).
-  - Article uses end-state vocabulary: "airdrop ended", "claim period closed", "distribution complete",
-    "token went live", "tokens have been distributed", "snapshot has been taken in <past month/year>".
-  - Article discusses price predictions, market analysis, ETF news, regulation, lawsuits, hacks,
-    funding rounds, ecosystem updates, opinion pieces, or general project news.
-  - Article only speculates that an airdrop "might come" with no concrete participation steps.
-  - Article ranks past airdrops, lists historical airdrops, or summarizes the year's airdrops.
-  - Article is a generic guide or educational explainer about airdrops as a concept.
-  - Article is a retrospective tutorial referencing how to have qualified for a PAST airdrop
-    (e.g. "How to have staked TIA to receive Celestia's 2023 airdrop"). Past tense = news.
-
-Examples of titles that MUST be is_airdrop=false (these are all news):
-  - "Wormhole's $617M airdrop sparks 23% W price drop"          (aftermath/market reaction)
-  - "EtherFi airdrop sparks market turbulence, ETHFI drops 35%" (aftermath)
-  - "How a new development could stop OP price rally"           (price analysis)
-  - "Top 13 airdrops that distributed $4B in 2023"              (historical ranking)
-  - "LayerZero crosses milestone — is an airdrop coming?"       (speculation, no steps)
-  - "Solana Mobile launches SKR airdrop to Seeker phone users"  (already-launched distribution)
-  - "Celestia Network: How to stake TIA for the airdrop"        (retrospective on past 2023 airdrop)
-  - "Wormhole launches $617M airdrop to early users"            (already-launched distribution)
-
-=== OTHER RULES ===
-- "title" and "description" MUST be in Korean. NEVER leave them in English.
-- Return EXACTLY ${batch.length} results, one per input idx, in order.
-- If unsure about end_date, return null. Do not fabricate dates.
-- If the article asks for private keys/seed phrases or links to suspicious wallets, set is_scam=true and trust_score=0.
-- For is_airdrop=false items, set trust_score=0 (trust score is only meaningful for actionable airdrops).
+Input articles (JSON):
+${JSON.stringify(inputs, null, 2)}
 `.trim();
 }
 
@@ -391,13 +351,13 @@ function parseBatchResponse(rawText, expectedSize) {
   }
   const byIdx = new Map();
   for (const r of parsed.results) {
-    if (typeof r.idx === 'number') byIdx.set(r.idx, r);
+    if (typeof r.idx === 'number') {
+      // DB 필드명 trend_score로 매핑
+      r.trend_score = r.trend_score || r.trust_score || 50;
+      byIdx.set(r.idx, r);
+    }
   }
   if (byIdx.size === 0) throw new Error('Batch response has no valid idx entries');
-  // 일부 누락은 허용 (호출자가 idx 기반 매칭하여 누락분은 휴리스틱 fallback)
-  if (byIdx.size < expectedSize) {
-    console.warn(`Batch partial: got ${byIdx.size}/${expectedSize} results`);
-  }
   return byIdx;
 }
 
