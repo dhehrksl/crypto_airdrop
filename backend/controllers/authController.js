@@ -2,6 +2,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { OAuth2Client } = require('google-auth-library');
 const User = require('../models/User');
+const logger = require('../src/lib/logger');
 const { isValidEmail, validatePassword, validateUsername } = require('./_validators');
 
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -172,7 +173,7 @@ const googleSignIn = async (req, res) => {
       }
     );
   } catch (error) {
-    console.error('Google Sign-In Error:', error);
+    (req?.log || logger).error({ err: error }, 'Google Sign-In failed');
     res.status(401).json({ msg: 'Google Sign-In failed. Invalid token.' });
   }
 };

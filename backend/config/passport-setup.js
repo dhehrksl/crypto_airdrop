@@ -1,6 +1,7 @@
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const User = require('../models/User');
+const logger = require('../src/lib/logger');
 
 passport.serializeUser((user, done) => {
   done(null, user.id);
@@ -26,18 +27,16 @@ passport.use(
         const currentUser = await User.findOne({ googleId: profile.id });
 
         if (currentUser) {
-          // already have the user
-          console.log('User is: ', currentUser);
+          logger.debug({ userId: currentUser.id }, 'passport: existing Google user');
           return done(null, currentUser);
         } else {
-          // if not, create a new user in our db
           const newUser = await new User({
             googleId: profile.id,
             username: profile.displayName,
             email: profile.emails && profile.emails[0] ? profile.emails[0].value : null,
             avatarUrl: profile.photos && profile.photos[0] ? profile.photos[0].value : null,
           }).save();
-          console.log('Created new user: ', newUser);
+          logger.info({ userId: newUser.id }, 'passport: created new Google user');
           return done(null, newUser);
         }
       } catch (error) {

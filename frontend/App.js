@@ -6,7 +6,12 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'; // New
 import { Ionicons } from '@expo/vector-icons'; // For icons
 
 import { AuthProvider, AuthContext } from './src/context/AuthContext';
-import { initAdMob } from './src/services/admobConfig';
+import { initAdMob, requestConsent } from './src/services/admobConfig';
+import { initSentry, wrap as sentryWrap } from './src/services/sentryConfig';
+
+// Sentry는 가능한 한 일찍 초기화되어야 부팅 단계의 에러도 잡힌다.
+// useEffect보다 module top-level에서 호출.
+initSentry();
 import HomeScreen from './src/screens/HomeScreen';
 import DetailScreen from './src/screens/DetailScreen';
 import WebViewScreen from './src/screens/WebViewScreen';
@@ -162,10 +167,15 @@ const styles = StyleSheet.create({
   }
 });
 
-export default function App() {
-  // AdMob SDK 초기화 — 앱 마운트 시 1회. SDK 미설치(Expo Go) 환경에서는 no-op.
+function App() {
+  // AdMob SDK 초기화 + UMP 동의 흐름 — 앱 마운트 시 1회.
+  // SDK 미설치(Expo Go) 환경에서는 둘 다 no-op. 순서 중요: init → consent (정책상
+  // 동의 결과가 결정되기 전엔 광고 컴포넌트가 canRequestAds() 게이트로 차단됨).
   useEffect(() => {
-    initAdMob();
+    (async () => {
+      await initAdMob();
+      await requestConsent();
+    })();
   }, []);
 
   return (
@@ -176,3 +186,6 @@ export default function App() {
     </AuthProvider>
   );
 }
+
+// Sentry.wrap — ErrorBoundary + Touch tracking 자동 적용. DSN 미설정이면 no-op으로 통과.
+export default sentryWrap(App);

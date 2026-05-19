@@ -5,6 +5,7 @@
 
 const axios = require('axios');
 const cheerio = require('cheerio');
+const logger = require('../lib/logger');
 
 const TELEGRAM_USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
@@ -28,7 +29,7 @@ async function fetchChannel(name) {
     });
     return r.data || '';
   } catch (e) {
-    console.warn(`[Telegram] @${name} fetch failed: ${e.message || e}`);
+    logger.warn({ err: e, channel: name }, '[Telegram] fetch failed');
     return '';
   }
 }
@@ -64,7 +65,7 @@ function parsePosts(html, channelName) {
 
 async function fetchTelegramAirdrops({ channels = DEFAULT_CHANNELS } = {}) {
   if (channels.length === 0) {
-    console.log('[Telegram] no channels configured — set TELEGRAM_CHANNELS env to enable');
+    logger.info('[Telegram] no channels configured — set TELEGRAM_CHANNELS env to enable');
     return [];
   }
   const all = [];
@@ -73,7 +74,7 @@ async function fetchTelegramAirdrops({ channels = DEFAULT_CHANNELS } = {}) {
     const posts = parsePosts(html, ch);
     all.push(...posts);
   }
-  console.log(`[Telegram] collected ${all.length} airdrop-related posts from ${channels.length} channels`);
+  logger.info({ count: all.length, channels: channels.length }, '[Telegram] collected airdrop-related posts');
   return all;
 }
 

@@ -40,6 +40,7 @@ Expo 앱의 `app.json` `expo.extra.backendUrl`에 채워 넣을 HTTPS API URL을
 | `SCRAPER_ADMIN_TOKEN` | `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` 출력값 |
 | `GEMINI_API_KEY` | https://aistudio.google.com/apikey 발급값 |
 | `MONGODB_URI` | 위 1단계에서 만든 Atlas URI |
+| `SENTRY_DSN` | (선택) Sentry 프로젝트 DSN — 9번 섹션 참고. 비워두면 에러 트래킹 비활성 |
 
 > 모바일 native는 origin 헤더가 없어 `CORS_ALLOWED_ORIGINS`는 빈 값이어도 작동.
 > Render는 production에서 빈 CORS를 부팅 거부하므로 임의값 하나 넣어야 함 (예: `https://api.placeholder.local`).
@@ -138,10 +139,80 @@ UptimeRobot 무료로 5분마다 `/health`에 ping 쏴서 깨워둠.
 
 - Render Dashboard → 서비스 → **Logs** 탭에서 실시간 로그
 - `console.error` 출력은 자동 캡처
-- Sentry/Logtail 등 외부 모니터링 도입은 별도 작업
+- `SENTRY_DSN` 설정 시 5xx 에러와 미처리 예외는 Sentry에 자동 캡쳐됨 (9번 섹션 참고)
 
 ## 8. 다음 단계
 
 - `JWT_SECRET` 6개월마다 회전(전체 사용자 재로그인 강제) — Render Dashboard에서 값 교체
 - Atlas M0 용량(512MB) 초과 임박 시 News retention 일수 축소(`pruneOldNews`의 `NEWS_RETENTION_DAYS`)
 - 트래픽 증가 시 Atlas M10 + Render standard로 업그레이드
+
+---
+
+## 9. Sentry — 에러 트래킹 (선택, 권장)
+
+운영 환경에서 발생하는 5xx 에러와 미처리 예외를 자동 수집·알림.
+**비용: 무료 플랜으로 월 5,000 에러 + 10,000 트랜잭션** (출시 초기 충분).
+
+### 9.1 Sentry 프로젝트 생성
+1. https://sentry.io 가입 (GitHub 계정으로)
+2. **Create Project** → Platform: **Node.js** → 프로젝트 이름 `crypto-airdrop-api`
+3. 생성 후 **Settings → Projects → crypto-airdrop-api → Client Keys (DSN)** 에서 DSN 복사
+   ```
+   https://xxxxxxxxxxxx@oNNNNNN.ingest.us.sentry.io/NNNNNNN
+   ```
+
+### 9.2 Render에 DSN 주입
+Render Dashboard → 서비스 → **Environment** → `SENTRY_DSN`을 위 DSN 값으로 설정 → **Save**.
+재배포되면 부팅 로그에 다음 라인이 보임:
+```
+[Sentry] initialized { env: 'production' }
+```
+DSN 미설정 시:
+```
+[Sentry] SENTRY_DSN 미설정 — 운영 에러 트래킹이 비활성화됩니다.
+```
+
+### 9.3 샘플링 비율 조정 (선택)
+- `SENTRY_TRACES_SAMPLE_RATE` (기본 0.1) — 트랜잭션 추적 샘플링. 트래픽이 늘어 비용이 부담되면 0.05로 낮춤.
+- `SENTRY_PROFILES_SAMPLE_RATE` (기본 0.1) — 프로파일링 샘플링. traces가 캡쳐된 트랜잭션 중 비율.
+
+### 9.4 프론트엔드 Sentry (별도)
+모바일 앱(Expo)도 동일한 Sentry 조직 안에 별도 프로젝트로 생성:
+- Platform: **React Native** → 프로젝트 이름 `crypto-airdrop-mobile`
+- DSN을 `frontend/app.json` `expo.extra.sentry.dsn`에 입력하거나 EAS Secret `SENTRY_DSN`으로 빌드 타임 주입
+- production 빌드(EAS Build)에서만 활성 — 개발/Expo Go는 DSN 미설정 시 no-op
+
+### 9.5 검증
+
+**옵션 A — CLI 스크립트 (권장, 가장 빠름)**
+```bash
+cd backend
+# .env에 SENTRY_DSN이 있으면:
+npm run sentry:test
+# 또는 직접 주입:
+SENTRY_DSN='https://xxx@oNNN.ingest.us.sentry.io/NNN' npm run sentry:test
+```
+스크립트가 `captureMessage` + `captureException`을 보낸 뒤 `Sentry.flush(5s)`로 ack를 기다립니다. exit 0이면 transport 단까지 정상 — Sentry **Issues** 탭에 다음 라벨로 나타납니다(수신까지 수 초 소요):
+- `sentry-test: hello from CLI ...`
+- `sentry-test: synthetic error from CLI ...`
+
+flush 타임아웃이면 DSN/네트워크/프로젝트 quota 확인.
+
+**옵션 B — 실제 errorHandler 경로까지 e2e 검증 (dev/test 환경에서)**
+백엔드를 띄운 상태에서:
+```bash
+curl http://localhost:3000/api/_debug/throw
+```
+이 라우트는 `NODE_ENV=production`에서는 등록되지 않으므로 운영 검증엔 옵션 A를 쓰세요.
+
+**프론트엔드(React Native) 검증**
+스크립트로 자동화 불가 — `@sentry/react-native`는 네이티브 모듈이라 EAS Build/dev-client에서만 동작합니다.
+1. `frontend/app.json`의 `expo.extra.sentry.dsn`(혹은 EAS Secret) 설정
+2. EAS dev-client 빌드 → 디바이스에서 앱 실행
+3. `App.js`에 일시적으로 한 줄 추가하거나, 일부러 throw하는 디버그 버튼을 잠시 둠:
+   ```js
+   import { captureException } from './src/services/sentryConfig';
+   captureException(new Error('frontend sentry-test'));
+   ```
+4. Sentry **모바일 프로젝트** Issues 탭에 표시되는지 확인 → 검증 후 코드 롤백

@@ -11,6 +11,7 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const AirdropDraft = require('../../models/AirdropDraft');
 const { isBlockedSource } = require('../config/blockedSources');
+const logger = require('../lib/logger');
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_MODEL = process.env.GEMINI_DRAFT_MODEL || process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite';
@@ -196,7 +197,7 @@ async function extractAndSaveBatch(items) {
       });
       byIdx = parseResponse((await result.response).text(), batch.length);
     } catch (e) {
-      console.error('[Draft AI] batch failed:', e.message || e);
+      logger.error({ err: e }, '[Draft AI] batch failed');
       stats.errors += batch.length;
       continue;
     }
@@ -212,7 +213,7 @@ async function extractAndSaveBatch(items) {
           stats.saved++;
         }
       } catch (e) {
-        console.error('[Draft AI] save failed:', e.message || e);
+        logger.error({ err: e }, '[Draft AI] save failed');
         stats.errors++;
       }
     }

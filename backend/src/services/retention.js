@@ -11,6 +11,7 @@
 
 const Airdrop = require('../../models/Airdrop');
 const News = require('../../models/News');
+const logger = require('../lib/logger');
 
 async function demoteExpiredAirdrops({ now = new Date() } = {}) {
   const expired = await Airdrop.find({
@@ -41,13 +42,14 @@ async function demoteExpiredAirdrops({ now = new Date() } = {}) {
       await Airdrop.deleteOne({ _id: a._id });
     } catch (err) {
       errors++;
-      console.error(`[Retention] demote failed for ${a._id} (${a.title}):`, err.message || err);
+      logger.error({ err, airdropId: a._id, title: a.title }, '[Retention] demote failed');
     }
   }
 
   if (expired.length > 0 || demoted > 0) {
-    console.log(
-      `[Retention] demoted ${demoted} expired airdrops (skipped=${skipped}, errors=${errors})`
+    logger.info(
+      { demoted, skipped, errors },
+      '[Retention] demoted expired airdrops'
     );
   }
   return { found: expired.length, demoted, skipped, errors, ranAt: new Date().toISOString() };

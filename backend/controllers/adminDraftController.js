@@ -10,6 +10,7 @@ const { isBlockedSource } = require('../src/config/blockedSources');
 const { fetchRedditAirdrops } = require('../src/services/redditSource');
 const { fetchTelegramAirdrops } = require('../src/services/telegramSource');
 const { extractAndSaveBatch, extractSingle } = require('../src/services/draftExtractor');
+const logger = require('../src/lib/logger');
 
 const URL_FETCH_TIMEOUT_MS = 15000;
 const URL_USER_AGENT =
@@ -26,7 +27,7 @@ const listDrafts = async (req, res) => {
       .lean();
     res.json({ data: drafts, count: drafts.length });
   } catch (e) {
-    console.error('listDrafts:', e.message);
+    (req?.log || logger).error({ err: e }, 'listDrafts failed');
     res.status(500).json({ msg: 'Server Error' });
   }
 };
@@ -60,7 +61,7 @@ const updateDraft = async (req, res) => {
     await d.save();
     res.json({ ok: true, draft: d });
   } catch (e) {
-    console.error('updateDraft:', e.message);
+    (req?.log || logger).error({ err: e }, 'updateDraft failed');
     res.status(500).json({ msg: 'Server Error' });
   }
 };
@@ -110,7 +111,7 @@ const approveDraft = async (req, res) => {
 
     res.json({ ok: true, airdrop: created });
   } catch (e) {
-    console.error('approveDraft:', e.message);
+    (req?.log || logger).error({ err: e }, 'approveDraft failed');
     res.status(500).json({ msg: 'Server Error' });
   }
 };
@@ -128,7 +129,7 @@ const rejectDraft = async (req, res) => {
     await d.save();
     res.json({ ok: true });
   } catch (e) {
-    console.error('rejectDraft:', e.message);
+    (req?.log || logger).error({ err: e }, 'rejectDraft failed');
     res.status(500).json({ msg: 'Server Error' });
   }
 };
@@ -140,7 +141,7 @@ const deleteDraft = async (req, res) => {
     if (r.deletedCount === 0) return res.status(404).json({ msg: 'Draft not found' });
     res.json({ ok: true });
   } catch (e) {
-    console.error('deleteDraft:', e.message);
+    (req?.log || logger).error({ err: e }, 'deleteDraft failed');
     res.status(500).json({ msg: 'Server Error' });
   }
 };
@@ -220,7 +221,7 @@ const draftFromUrl = async (req, res) => {
     const saved = await AirdropDraft.findOne({ unique_hash: item.id });
     res.json({ ok: true, draft: saved });
   } catch (e) {
-    console.error('draftFromUrl:', e.message);
+    (req?.log || logger).error({ err: e }, 'draftFromUrl failed');
     res.status(500).json({ msg: 'Server Error', detail: e.message });
   }
 };
@@ -242,18 +243,18 @@ async function runCollection(reason = 'manual') {
   }
   _collectRunning = true;
   _lastCollectAt = Date.now();
-  console.log(`[Draft Collect] triggered by ${reason}`);
+  logger.info({ reason }, '[Draft Collect] triggered');
   try {
     // Reddit 자동 수집은 Reddit Data API ToS상 상업적 사용 회색 영역 — 기본 비활성.
     // 켜려면 env DRAFT_REDDIT_ENABLED=true.
     const redditEnabled = process.env.DRAFT_REDDIT_ENABLED === 'true';
     const [reddit, telegram] = await Promise.all([
       redditEnabled
-        ? fetchRedditAirdrops().catch((e) => { console.warn('reddit fail', e.message); return []; })
+        ? fetchRedditAirdrops().catch((e) => { logger.warn({ err: e }, '[Draft Collect] reddit fetch failed'); return []; })
         : Promise.resolve([]),
-      fetchTelegramAirdrops().catch((e) => { console.warn('telegram fail', e.message); return []; }),
+      fetchTelegramAirdrops().catch((e) => { logger.warn({ err: e }, '[Draft Collect] telegram fetch failed'); return []; }),
     ]);
-    if (!redditEnabled) console.log('[Draft Collect] Reddit disabled (set DRAFT_REDDIT_ENABLED=true to enable)');
+    if (!redditEnabled) logger.info('[Draft Collect] Reddit disabled (set DRAFT_REDDIT_ENABLED=true to enable)');
     const items = [...reddit, ...telegram];
     // 이미 수집된 unique_hash는 미리 제외해 AI 호출 비용 절감
     const seen = await AirdropDraft.find(
@@ -262,7 +263,7 @@ async function runCollection(reason = 'manual') {
     ).lean();
     const seenSet = new Set(seen.map((s) => s.unique_hash));
     const fresh = items.filter((i) => !seenSet.has(i.id));
-    console.log(`[Draft Collect] ${items.length} collected, ${fresh.length} new → AI extraction`);
+    logger.info({ collected: items.length, fresh: fresh.length }, '[Draft Collect] → AI extraction');
     let stats = { saved: 0, skipped: 0, errors: 0, aiCalls: 0, reasons: {} };
     if (fresh.length > 0) {
       stats = await extractAndSaveBatch(fresh);

@@ -6,6 +6,7 @@
 // API 한도: 무료 60 RPM (API key 없이 호출 가능)
 
 const axios = require('axios');
+const logger = require('../lib/logger');
 
 const SNAPSHOT_GRAPHQL = 'https://hub.snapshot.org/graphql';
 
@@ -43,7 +44,7 @@ async function fetchSnapshotProposals({ limit = 100 } = {}) {
     proposals = r.data && r.data.data && r.data.data.proposals;
     if (!Array.isArray(proposals)) return [];
   } catch (e) {
-    console.warn(`[Snapshot] fetch failed: ${e.message || e}`);
+    logger.warn({ err: e }, '[Snapshot] fetch failed');
     return [];
   }
 

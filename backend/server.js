@@ -1,17 +1,18 @@
+// 백엔드 부팅 진입점 — bootstrapping에만 책임.
+//
+// 라우트/미들웨어/에러핸들러 정의는 app.js로 분리되어 있다 → require만 해도 안전(supertest 사용 가능).
+// 본 파일은 다음 부작용을 모은다:
+//   1) dotenv 로드
+//   2) Sentry 자동 계측(다른 모듈 require 전에 instrument)
+//   3) production fail-fast 보안 자가진단
+//   4) MongoDB 연결
+//   5) cron 등록(scraper / draft collect / retention)
+//   6) HTTP listen
+
 require('dotenv').config();
-const express = require('express');
-const mongoose = require('mongoose');
-const cors = require('cors');
-const helmet = require('helmet');
-// expo-server-sdk v6는 ESM-only — CommonJS에서 require 불가. 사용 시점에 dynamic import.
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const Airdrop = require('./models/Airdrop');
-const News = require('./models/News');
-const User = require('./models/User');
-const { runScraper } = require('./src/services/scraper');
-const { authLimiter, submissionLimiter, generalLimiter } = require('./middleware/rateLimits');
-const errorHandler = require('./middleware/errorHandler');
+// Sentry 자동 계측은 instrument.js가 다른 모듈보다 먼저 로드되어야 동작한다
+// (express/mongoose가 require되기 전에 OpenTelemetry 훅을 걸어야 함).
+require('./instrument');
 
 // ===== 보안 자가 진단 (부팅 시 1회) =====
 function runSecuritySelfCheck() {
@@ -70,219 +71,45 @@ function runSecuritySelfCheck() {
     warnings.push('GOOGLE_CLIENT_ID=dummy in production — Google 로그인 작동 안 함.');
   }
 
-  for (const w of warnings) console.warn('[보안 경고]', w);
-  for (const f of fatals) console.error('[보안 치명적]', f);
+  // 보안 자가진단은 logger require 전에 호출되므로 stderr 직접 출력.
+  for (const w of warnings) process.stderr.write(`[보안 경고] ${w}\n`);
+  for (const f of fatals) process.stderr.write(`[보안 치명적] ${f}\n`);
   if (fatals.length > 0) {
-    console.error('production 환경에서 치명적 보안 설정이 누락되어 부팅을 중단합니다.');
+    process.stderr.write('production 환경에서 치명적 보안 설정이 누락되어 부팅을 중단합니다.\n');
     process.exit(1);
   }
 }
 runSecuritySelfCheck();
 
-const app = express();
-
-// expo-server-sdk v6 ESM 호환 — 최초 호출 시 한 번만 로드해 캐싱
-let _expoSdkPromise = null;
-function loadExpoSdk() {
-  if (!_expoSdkPromise) _expoSdkPromise = import('expo-server-sdk');
-  return _expoSdkPromise;
-}
-
-// JWT_SECRET 검증은 authMiddleware/authController에서 require 시점에 throw로 강제됨.
-// 여기서는 따로 변수 보관 안 함 — server.js는 직접 sign/verify를 안 함.
-
-// ===== 보안 미들웨어 =====
-// helmet — 표준 보안 헤더. API-only라 CSP는 비활성
-app.use(helmet({ contentSecurityPolicy: false }));
-
-// CORS — 화이트리스트 (CORS_ALLOWED_ORIGINS env, 쉼표 구분)
-const CORS_ALLOWED_ORIGINS = (process.env.CORS_ALLOWED_ORIGINS || '')
-  .split(',')
-  .map((s) => s.trim())
-  .filter(Boolean);
-app.use(
-  cors({
-    origin(origin, cb) {
-      if (!origin) return cb(null, true); // server-to-server / curl / 모바일 native
-      if (CORS_ALLOWED_ORIGINS.length === 0) return cb(null, true); // dev fallback
-      if (CORS_ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
-      console.warn(`[CORS] blocked origin: ${origin}`);
-      cb(new Error('Not allowed by CORS'));
-    },
-    credentials: true,
-  })
-);
-
-app.use(express.json());
-
-// Health check — Render healthCheckPath / UptimeRobot 핑 대상. rate-limit 전에 둬서
-// 부하 상황에서도 200 유지. DB 상태도 함께 노출(undefined=초기, 1=connected).
-app.get('/health', (req, res) => {
-  const mongoState = mongoose.connection?.readyState;
-  res.json({
-    ok: true,
-    uptimeSec: Math.round(process.uptime()),
-    mongo: mongoState === 1 ? 'connected' : `state:${mongoState}`,
-    ts: new Date().toISOString(),
-  });
-});
-
-// Rate limit — 라우트 그룹별. scraper는 자체 토큰+쿨다운으로 제외
-app.use('/api/auth', authLimiter);
-app.use('/api', (req, res, next) => {
-  if (req.path.startsWith('/scraper/') || req.path.startsWith('/auth/')) return next();
-  return generalLimiter(req, res, next);
-});
-
-// Passport middleware
-const passport = require('passport');
-require('./config/passport-setup'); // This configures the strategy
-app.use(passport.initialize());
-
-
-// --- Other API Routes ---
-
-// 인증 미들웨어는 라우터 등록부 아래에서도 쓰이지만, 위쪽 엔드포인트들이 먼저 필요해 여기서 require.
-const _authMiddlewareEarly = require('./middleware/authMiddleware');
-const _adminMiddlewareEarly = require('./middleware/adminMiddleware');
-
-// push token 등록 — body의 userId 신뢰 X. JWT의 req.user.id로만 본인 토큰 갱신.
-app.post('/api/users/push-token', _authMiddlewareEarly, async (req, res) => {
-  try {
-    const { token } = req.body;
-    if (!token) return res.status(400).json({ error: 'Token is required' });
-    const user = await User.findById(req.user.id);
-    if (!user) return res.status(404).json({ error: 'User not found' });
-    user.push_token = token;
-    await user.save();
-    res.json({ message: 'Push token registered successfully' });
-  } catch (error) {
-    console.error('Push token registration error:', error);
-    res.status(500).json({ error: 'Internal Server Error' });
-  }
-});
-
-// 테스트 푸시 — 운영에서는 비활성, dev에서도 admin 전용.
-// 인증 없이 노출되면 누구나 전체 사용자에게 푸시 발송 가능 (스팸/abuse).
-app.post('/api/notifications/test', _authMiddlewareEarly, _adminMiddlewareEarly, async (req, res) => {
-  if (process.env.NODE_ENV === 'production') {
-    return res.status(404).json({ error: 'Not Found' });
-  }
-  try {
-    const { Expo } = await loadExpoSdk();
-    const expo = new Expo();
-    const users = await User.find({ push_token: { $exists: true, $ne: null } });
-    const pushTokens = users.map(user => user.push_token);
-    if (pushTokens.length === 0) return res.status(404).json({ message: 'No registered push tokens found.' });
-    const messages = [];
-    for (const pushToken of pushTokens) {
-      if (!Expo.isExpoPushToken(pushToken)) continue;
-      messages.push({
-        to: pushToken,
-        sound: 'default',
-        title: '테스트 알림',
-        body: '푸시 알림 연동이 정상 동작합니다.',
-        data: { screen: 'Home' },
-      });
-    }
-    const chunks = expo.chunkPushNotifications(messages);
-    const tickets = [];
-    for (const chunk of chunks) {
-      const ticketChunk = await expo.sendPushNotificationsAsync(chunk);
-      tickets.push(...ticketChunk);
-    }
-    res.json({ message: 'Test push notifications sent!', tickets });
-  } catch (error) {
-    console.error('Error sending test push notifications:', error);
-    res.status(500).json({ error: 'Internal Server Error' });
-  }
-});
-
-// scraper는 외부 AI API quota를 소모하므로 동시 실행 락 + 쿨다운으로 보호한다
-const SCRAPER_COOLDOWN_MS = 30 * 60 * 1000; // 30분 — 매시 cron(60분 간격)과 양립, HTTP 연타 차단
-const SCRAPER_ADMIN_TOKEN = process.env.SCRAPER_ADMIN_TOKEN || '';
-let scraperRunning = false;
-let scraperLastRunAt = 0;
-let scraperLastStats = null; // 마지막 runScraper() 반환값
-// SCRAPER_ADMIN_TOKEN 미설정 경고는 runSecuritySelfCheck()로 통합됨
-
-function requireAdminToken(req, res, next) {
-  if (!SCRAPER_ADMIN_TOKEN) return next(); // 토큰 미설정 시 인증 우회 (개발 편의)
-  const header = req.headers.authorization || '';
-  const provided =
-    header.startsWith('Bearer ') ? header.slice(7) : req.headers['x-admin-token'];
-  if (provided !== SCRAPER_ADMIN_TOKEN) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-  next();
-}
-
-// scraper 실행 트리거 함수 (HTTP 핸들러와 cron에서 공유)
-async function triggerScraper(reason) {
-  if (scraperRunning) return { started: false, reason: 'already-running' };
-  const elapsed = Date.now() - scraperLastRunAt;
-  if (elapsed < SCRAPER_COOLDOWN_MS) {
-    return {
-      started: false,
-      reason: 'cooldown',
-      retryAfterSec: Math.ceil((SCRAPER_COOLDOWN_MS - elapsed) / 1000),
-    };
-  }
-  scraperRunning = true;
-  scraperLastRunAt = Date.now();
-  console.log(`[Scraper] triggered by ${reason}`);
-  runScraper()
-    .then((stats) => {
-      scraperLastStats = stats;
-    })
-    .catch((error) => {
-      console.error('Scraper run failed:', error);
-      scraperLastStats = { error: String(error.message || error), failedAt: new Date().toISOString() };
-    })
-    .finally(() => {
-      scraperRunning = false;
-    });
-  return { started: true };
-}
-
-app.post('/api/scraper/run', requireAdminToken, async (req, res) => {
-  const r = await triggerScraper('http');
-  if (r.started) return res.json({ message: 'Scraper execution started' });
-  if (r.reason === 'already-running') {
-    return res.status(409).json({ error: 'Scraper is already running' });
-  }
-  if (r.reason === 'cooldown') {
-    res.set('Retry-After', String(r.retryAfterSec));
-    return res.status(429).json({ error: 'Cooldown active', retryAfterSec: r.retryAfterSec });
-  }
-  return res.status(500).json({ error: 'Unknown error' });
-});
-
-app.get('/api/scraper/status', (req, res) => {
-  const elapsed = Date.now() - scraperLastRunAt;
-  const cooldownRemainingSec =
-    scraperLastRunAt === 0 ? 0 : Math.max(0, Math.ceil((SCRAPER_COOLDOWN_MS - elapsed) / 1000));
-  res.json({
-    running: scraperRunning,
-    lastRunAt: scraperLastRunAt ? new Date(scraperLastRunAt).toISOString() : null,
-    cooldownRemainingSec,
-    lastStats: scraperLastStats,
-  });
-});
-
-// node-cron으로 1시간마다 자동 실행 (정각 0분)
+const mongoose = require('mongoose');
 const cron = require('node-cron');
-const SCRAPER_CRON = process.env.SCRAPER_CRON || '0 * * * *'; // 매시 정각
+const app = require('./app');
+const logger = require('./src/lib/logger');
+const { triggerScraper } = require('./src/services/scraperRunner');
+const { demoteExpiredAirdrops } = require('./src/services/retention');
+const { runCollection } = require('./controllers/adminDraftController');
+
+const PORT = process.env.PORT || 3000;
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/crypto_airdrop';
+
+mongoose
+  .connect(MONGODB_URI)
+  .then(() => logger.info('MongoDB connected'))
+  .catch((err) => logger.error({ err }, 'MongoDB connection failed'));
+
+// ===== cron 등록 =====
+// node-cron으로 1시간마다 자동 실행 (정각 0분)
+const SCRAPER_CRON = process.env.SCRAPER_CRON || '0 * * * *';
 const SCRAPER_CRON_ENABLED = process.env.SCRAPER_CRON_ENABLED !== 'false';
 if (SCRAPER_CRON_ENABLED && cron.validate(SCRAPER_CRON)) {
   cron.schedule(SCRAPER_CRON, () => {
     triggerScraper('cron');
   });
-  console.log(`[Scraper] cron scheduled: "${SCRAPER_CRON}"`);
+  logger.info({ cron: SCRAPER_CRON }, '[Scraper] cron scheduled');
 } else if (SCRAPER_CRON_ENABLED) {
-  console.warn(`[Scraper] invalid SCRAPER_CRON: "${SCRAPER_CRON}" — cron disabled`);
+  logger.warn({ cron: SCRAPER_CRON }, '[Scraper] invalid SCRAPER_CRON — cron disabled');
 } else {
-  console.log('[Scraper] cron disabled by SCRAPER_CRON_ENABLED=false');
+  logger.info('[Scraper] cron disabled by SCRAPER_CRON_ENABLED=false');
 }
 
 // Draft 자동 수집 — Reddit/Telegram 커뮤니티에서 7일치 → AI 구조 추출 → 관리자 대기 큐
@@ -292,18 +119,17 @@ const DRAFT_COLLECT_ENABLED = process.env.DRAFT_COLLECT_ENABLED !== 'false';
 if (DRAFT_COLLECT_ENABLED && cron.validate(DRAFT_COLLECT_CRON)) {
   cron.schedule(DRAFT_COLLECT_CRON, () => {
     runCollection('cron').catch((err) =>
-      console.error('[Draft Collect] cron run failed:', err.message || err)
+      logger.error({ err }, '[Draft Collect] cron run failed')
     );
   });
-  console.log(`[Draft Collect] cron scheduled: "${DRAFT_COLLECT_CRON}"`);
+  logger.info({ cron: DRAFT_COLLECT_CRON }, '[Draft Collect] cron scheduled');
 } else if (DRAFT_COLLECT_ENABLED) {
-  console.warn(`[Draft Collect] invalid cron expression: "${DRAFT_COLLECT_CRON}" — disabled`);
+  logger.warn({ cron: DRAFT_COLLECT_CRON }, '[Draft Collect] invalid cron expression — disabled');
 } else {
-  console.log('[Draft Collect] cron disabled by DRAFT_COLLECT_ENABLED=false');
+  logger.info('[Draft Collect] cron disabled by DRAFT_COLLECT_ENABLED=false');
 }
 
 // 만료된 에어드랍 자동 강등 (매일 1회)
-const { demoteExpiredAirdrops } = require('./src/services/retention');
 const AIRDROP_RETENTION_CRON = process.env.AIRDROP_RETENTION_CRON || '0 3 * * *'; // 매일 03:00
 const AIRDROP_RETENTION_ENABLED = process.env.AIRDROP_RETENTION_ENABLED !== 'false';
 if (AIRDROP_RETENTION_ENABLED && cron.validate(AIRDROP_RETENTION_CRON)) {
@@ -311,99 +137,21 @@ if (AIRDROP_RETENTION_ENABLED && cron.validate(AIRDROP_RETENTION_CRON)) {
     AIRDROP_RETENTION_CRON,
     () => {
       demoteExpiredAirdrops().catch((err) =>
-        console.error('[Retention] cron run failed:', err.message || err)
+        logger.error({ err }, '[Retention] cron run failed')
       );
     },
     { timezone: 'Asia/Seoul' }
   );
-  console.log(`[Retention] cron scheduled: "${AIRDROP_RETENTION_CRON}" (KST)`);
+  logger.info({ cron: AIRDROP_RETENTION_CRON }, '[Retention] cron scheduled (KST)');
 } else if (AIRDROP_RETENTION_ENABLED) {
-  console.warn(
-    `[Retention] invalid AIRDROP_RETENTION_CRON: "${AIRDROP_RETENTION_CRON}" — cron disabled`
+  logger.warn(
+    { cron: AIRDROP_RETENTION_CRON },
+    '[Retention] invalid AIRDROP_RETENTION_CRON — cron disabled'
   );
 } else {
-  console.log('[Retention] cron disabled by AIRDROP_RETENTION_ENABLED=false');
+  logger.info('[Retention] cron disabled by AIRDROP_RETENTION_ENABLED=false');
 }
-
-// --- API Routes ---
-// Express 5 라우터에서 정적 path 매칭이 깨지는 케이스가 있어 신규 엔드포인트는 server에 직접 등록
-const authMiddleware = require('./middleware/authMiddleware');
-const adminMiddleware = require('./middleware/adminMiddleware');
-const { deleteAccount } = require('./controllers/userController');
-const {
-  createSubmission,
-  listMySubmissions,
-  adminListSubmissions,
-  adminApproveSubmission,
-  adminRejectSubmission,
-} = require('./controllers/submissionController');
-const {
-  adminCreateAirdrop,
-  adminUpdateAirdrop,
-  adminDeleteAirdrop,
-} = require('./controllers/adminAirdropController');
-const {
-  listDrafts,
-  updateDraft,
-  approveDraft,
-  rejectDraft,
-  deleteDraft,
-  draftFromUrl,
-  triggerCollect,
-  runCollection,
-} = require('./controllers/adminDraftController');
-
-// 사용자 계정 삭제
-app.delete('/api/user/account', authMiddleware, deleteAccount);
-
-// 사용자 제보 — POST에 더 엄격한 limit (스팸 방어)
-app.post('/api/submissions', submissionLimiter, authMiddleware, createSubmission);
-app.get('/api/submissions/mine', authMiddleware, listMySubmissions);
-
-// 관리자 — 제보 검토
-app.get('/api/admin/submissions', authMiddleware, adminMiddleware, adminListSubmissions);
-app.post('/api/admin/submissions/:id/approve', authMiddleware, adminMiddleware, adminApproveSubmission);
-app.post('/api/admin/submissions/:id/reject', authMiddleware, adminMiddleware, adminRejectSubmission);
-
-// 관리자 — 에어드랍 직접 관리
-app.post('/api/admin/airdrops', authMiddleware, adminMiddleware, adminCreateAirdrop);
-app.put('/api/admin/airdrops/:id', authMiddleware, adminMiddleware, adminUpdateAirdrop);
-app.delete('/api/admin/airdrops/:id', authMiddleware, adminMiddleware, adminDeleteAirdrop);
-
-// 관리자 — Draft 큐레이션 (커뮤니티 수집 → AI 추출 → 검토 → 승격)
-app.get('/api/admin/drafts', authMiddleware, adminMiddleware, listDrafts);
-app.patch('/api/admin/drafts/:id', authMiddleware, adminMiddleware, updateDraft);
-app.post('/api/admin/drafts/:id/approve', authMiddleware, adminMiddleware, approveDraft);
-app.post('/api/admin/drafts/:id/reject', authMiddleware, adminMiddleware, rejectDraft);
-app.delete('/api/admin/drafts/:id', authMiddleware, adminMiddleware, deleteDraft);
-app.post('/api/admin/drafts/from-url', authMiddleware, adminMiddleware, draftFromUrl);
-app.post('/api/admin/drafts/collect', authMiddleware, adminMiddleware, triggerCollect);
-
-app.use('/api/airdrops', require('./routes/airdrops'));
-app.use('/api/auth', require('./routes/auth'));
-app.use('/api/user', require('./routes/user'));
-app.use('/api/market', require('./routes/market'));
-
-// errorHandler 통합 검증용 라우트 — dev에서만 노출
-if (process.env.NODE_ENV !== 'production') {
-  app.get('/api/_debug/throw', () => {
-    const err = new Error('Sensitive internal: DB at mongodb://secret-host:27017');
-    err.status = 500;
-    throw err;
-  });
-}
-
-
-const PORT = process.env.PORT || 3000;
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/crypto_airdrop';
-
-mongoose.connect(MONGODB_URI)
-  .then(() => console.log('MongoDB Connected'))
-  .catch(err => console.error('MongoDB connection error:', err));
-
-// 글로벌 에러 핸들러 — 모든 라우트 등록 후 마지막에 부착
-app.use(errorHandler);
 
 app.listen(PORT, () => {
-  console.log(`Backend server running on port ${PORT}`);
+  logger.info({ port: PORT }, 'Backend server running');
 });

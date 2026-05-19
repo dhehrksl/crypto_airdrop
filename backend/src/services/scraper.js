@@ -4,6 +4,7 @@ const RSSParser = require('rss-parser');
 const Airdrop = require('../../models/Airdrop');
 const News = require('../../models/News');
 const User = require('../../models/User');
+const logger = require('../lib/logger');
 // expo-server-sdk v6는 ESM-only — sendPushNotifications 내부에서 dynamic import.
 const { isBlockedSource } = require('../config/blockedSources');
 const { fetchSnapshotProposals } = require('./snapshotSource');
@@ -17,7 +18,7 @@ async function pruneOldNews() {
   const cutoff = new Date(Date.now() - NEWS_RETENTION_DAYS * 24 * 60 * 60 * 1000);
   const result = await News.deleteMany({ created_at: { $lt: cutoff } });
   if (result.deletedCount > 0) {
-    console.log(`[News retention] pruned ${result.deletedCount} items older than ${NEWS_RETENTION_DAYS} days`);
+    logger.info({ deleted: result.deletedCount, days: NEWS_RETENTION_DAYS }, '[News retention] pruned old items');
   }
   return result.deletedCount;
 }
@@ -117,8 +118,8 @@ async function fetchRealData() {
       }));
       allItems = [...allItems, ...items];
     } catch (error) {
-      const reason = error.status ? `Status ${error.status}` : "Fetch/Parse Error";
-      console.warn(`[Skip Source] ${source.name}: ${reason}`);
+      const reason = error.status ? `Status ${error.status}` : 'Fetch/Parse Error';
+      logger.warn({ source: source.name, reason }, '[Skip Source]');
     }
   }
 
@@ -126,11 +127,11 @@ async function fetchRealData() {
   try {
     const snapshotItems = await fetchSnapshotProposals();
     if (snapshotItems.length > 0) {
-      console.log(`[Snapshot] fetched ${snapshotItems.length} airdrop-related active proposals`);
+      logger.info({ count: snapshotItems.length }, '[Snapshot] fetched airdrop-related active proposals');
       allItems = [...allItems, ...snapshotItems];
     }
   } catch (e) {
-    console.warn(`[Snapshot] error: ${e.message || e}`);
+    logger.warn({ err: e }, '[Snapshot] fetch error');
   }
 
   return Array.from(new Map(allItems.map(item => [item.id, item])).values());
@@ -164,7 +165,7 @@ async function sendPushNotifications(airdrop) {
   if (messages.length === 0) return;
   const chunks = expo.chunkPushNotifications(messages);
   for (const chunk of chunks) {
-    try { await expo.sendPushNotificationsAsync(chunk); } catch (e) { console.error(e); }
+    try { await expo.sendPushNotificationsAsync(chunk); } catch (e) { logger.error({ err: e }, 'push send failed'); }
   }
 }
 
@@ -247,10 +248,9 @@ async function saveAiResult(item, aiResult) {
   // 사후 검증 — 이미 끝난 에어드랍을 News로 강등
   const check = shouldDemoteAirdrop(aiResult, item);
   if (check.demote) {
-    console.warn(
-      `[AI post-check] demoted to News: ${aiResult.title} (reason=${check.reason}` +
-        (check.parsedEndDate ? `, end_date=${check.parsedEndDate.toISOString()}` : '') +
-        `)`
+    logger.warn(
+      { title: aiResult.title, reason: check.reason, parsedEndDate: check.parsedEndDate || null },
+      '[AI post-check] demoted to News'
     );
     aiResult = { ...aiResult, is_airdrop: false, trend_score: 0 };
   }
@@ -279,7 +279,7 @@ async function saveAiResult(item, aiResult) {
     // 같은 unique_hash가 휴리스틱 단계에서 News로 먼저 저장됐을 수 있음 — 이중 노출 방지
     await News.deleteOne({ unique_hash: { $eq: item.id } });
     if (updateData.trend_score >= 90) await sendPushNotifications(newA);
-    console.log(`Saved Airdrop: ${aiResult.title} (Score: ${aiResult.trend_score})`);
+    logger.info({ title: aiResult.title, score: aiResult.trend_score }, 'saved Airdrop');
   } else {
     const newsData = {
       title: aiResult.title,
@@ -295,7 +295,7 @@ async function saveAiResult(item, aiResult) {
     );
     // AI가 "에어드랍 아니다"로 판정 → 이전에 잘못 분류돼 Airdrop에 들어간 게 있다면 제거
     await Airdrop.deleteOne({ unique_hash: { $eq: item.id }, source: { $ne: 'airdrops.io' } });
-    console.log(`Saved News: ${aiResult.title}`);
+    logger.info({ title: aiResult.title }, 'saved News');
   }
 }
 
@@ -362,14 +362,14 @@ function parseBatchResponse(rawText, expectedSize) {
 }
 
 async function runScraper() {
-  console.log('--- Starting Scraper ---');
+  logger.info('--- Starting Scraper ---');
 
   // 오래된 뉴스 정리
   let prunedNews = 0;
   try {
     prunedNews = await pruneOldNews();
   } catch (err) {
-    console.error('News retention pruning failed:', err.message || err);
+    logger.error({ err }, 'News retention pruning failed');
   }
 
   const rawItems = await fetchRealData();
@@ -390,8 +390,9 @@ async function runScraper() {
     const blockedCheck = isBlockedSource({ link: item.link, sourceName: item.sourceName });
     if (blockedCheck.blocked) {
       blocked++;
-      console.warn(
-        `[Blocked source] ${blockedCheck.reason}=${blockedCheck.matched} | ${item.title}`
+      logger.warn(
+        { reason: blockedCheck.reason, matched: blockedCheck.matched, title: item.title },
+        '[Blocked source]'
       );
       continue;
     }
@@ -429,7 +430,7 @@ async function runScraper() {
       // 배치당 한 번만 대기 (이전 코드는 항목마다 5초)
       if (i + BATCH_SIZE < aiCandidates.length) await sleep(5000);
     } catch (error) {
-      console.error('Gemini batch API Error:', error.message || error);
+      logger.error({ err: error }, 'Gemini batch API failed');
       // 배치 실패 → 이 묶음은 모두 휴리스틱 fallback
       for (const { item, evaluation } of slice) {
         await saveHeuristic(item, evaluation);
@@ -463,9 +464,7 @@ async function runScraper() {
     prunedNews,
     finishedAt: new Date().toISOString(),
   };
-  console.log(
-    `--- Finished --- (items=${stats.items}, aiCalls=${stats.aiCalls}, aiSaved=${stats.aiSaved}, heuristic=${stats.heuristic}, skipped=${stats.skipped}, blocked=${stats.blocked}, prunedNews=${prunedNews})`
-  );
+  logger.info(stats, '--- Scraper finished ---');
   return stats;
 }
 module.exports = {

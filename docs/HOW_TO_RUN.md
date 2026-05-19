@@ -22,7 +22,17 @@
    PORT=3000
    MONGODB_URI=mongodb://localhost:27017/crypto_airdrop
    JWT_SECRET=your-super-secret-key-that-is-long
+   # (선택) 에러 트래킹 — 운영 배포 시 권장. 로컬 개발에서는 비워둠.
+   # SENTRY_DSN=https://xxxxxxxxxxxx@oNNNNNN.ingest.us.sentry.io/NNNNNNN
+   # (선택) 로그 레벨 — 기본은 development=debug / production=info / test=silent.
+   # LOG_LEVEL=info
    ```
+
+   **로그 출력 형식**:
+   - **development**: `pino-pretty`로 컬러/포맷팅된 사람-친화 출력
+   - **production**: 단일 라인 JSON (Render Logs / CloudWatch 등 파싱 친화). `SENTRY_DSN` 설정 시 5xx 자동 캡쳐.
+   - **test**: silent
+   - 비밀번호/토큰/Authorization 헤더는 자동 마스킹(`[REDACTED]`)됨
 4. 백엔드 서버를 시작합니다:
    ```bash
    node server.js
@@ -95,7 +105,28 @@
    node scripts/db/clear.js
    ```
 
-## 4. 확정 에어드랍 데이터베이스 시딩
+## 4. CI (GitHub Actions)
+
+`.github/workflows/ci.yml`이 `push to main`과 `pull_request to main`에서 자동 실행됩니다.
+
+**검증 항목**:
+- **backend-test**: Node 20 + `npm ci` + `npm test` (7 suites · 85 tests). mongodb-memory-server의 mongod 바이너리는 캐시되어 후속 실행이 빠릅니다.
+- **frontend-install**: Node 20 + `npm ci`만 (의존성 해상도 회귀 감지용). Metro 번들/EAS Build는 비용이 커서 CI에서 돌리지 않고 EAS에서 별도 확인.
+
+**같은 PR에 새 커밋 push 시 이전 실행 자동 취소** — 무료 분량 절약.
+
+### PR 머지 차단 (권장)
+
+CI 실패 시 머지를 막으려면 GitHub repo에서 직접 설정:
+1. Settings → Branches → **Add branch ruleset** (또는 Add protection rule) — Target: `main`
+2. **Require status checks to pass** 활성화 → `Backend (Jest)` / `Frontend (install check)` 두 check를 required로 추가
+3. **Require branches to be up to date before merging** 활성화 (권장)
+
+> 첫 PR 한 번은 CI를 돌려야 status check 이름이 목록에 나타납니다.
+
+---
+
+## 5. 확정 에어드랍 데이터베이스 시딩
 
 테스트를 위한 확정 에어드랍 샘플 데이터를 데이터베이스에 추가합니다. 이 데이터에는 실시간 가격 정보를 위한 `tokenTicker`가 포함됩니다.
 
@@ -107,3 +138,14 @@
    ```bash
    node scripts/db/seedGuaranteed.js
    ```
+
+## 6. 테스트 실행
+
+`backend`에는 Jest 단위 + 통합 테스트가 셋업되어 있습니다.
+```bash
+cd backend
+npm test                # 전체 (7 suites · 85 tests · ~6초)
+npm run test:watch      # 파일 변경 시 재실행
+npm run test:coverage   # 커버리지 리포트
+```
+첫 실행은 mongodb-memory-server가 mongod 바이너리를 받느라 1~2분 추가될 수 있습니다 (후속은 캐시).

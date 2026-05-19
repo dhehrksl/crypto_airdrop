@@ -1,5 +1,6 @@
 const Airdrop = require('../models/Airdrop');
 const User = require('../models/User');
+const logger = require('../src/lib/logger');
 
 // @desc    Mark an airdrop as participated by the user
 // @route   POST /api/user/airdrops/:id/participate
@@ -22,7 +23,7 @@ const markAsParticipated = async (req, res) => {
 
     res.json(airdrop);
   } catch (error) {
-    console.error(error.message);
+    (req?.log || logger).error({ err: error }, 'markAsParticipated failed');
     res.status(500).send('Server Error');
   }
 };
@@ -47,7 +48,7 @@ const unmarkAsParticipated = async (req, res) => {
 
     res.json(airdrop);
   } catch (error) {
-    console.error(error.message);
+    (req?.log || logger).error({ err: error }, 'unmarkAsParticipated failed');
     res.status(500).send('Server Error');
   }
 };
@@ -60,7 +61,7 @@ const getParticipatedAirdrops = async (req, res) => {
     const participated = await Airdrop.find({ participatedBy: userId }).sort({ created_at: -1 });
     res.json({ data: participated });
   } catch (error) {
-    console.error(error.message);
+    (req?.log || logger).error({ err: error }, 'getParticipatedAirdrops failed');
     res.status(500).send('Server Error');
   }
 };
@@ -84,7 +85,7 @@ const deleteAccount = async (req, res) => {
 
     res.json({ ok: true, msg: '계정과 모든 개인정보가 삭제되었습니다.' });
   } catch (error) {
-    console.error('deleteAccount error:', error.message);
+    (req?.log || logger).error({ err: error }, 'deleteAccount failed');
     res.status(500).send('Server Error');
   }
 };

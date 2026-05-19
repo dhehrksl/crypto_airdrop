@@ -4,6 +4,7 @@
 // 원문 republishing이 아닌 구조 추출만 사용 — derivative works 회색 영역 회피.
 
 const axios = require('axios');
+const logger = require('../lib/logger');
 
 const REDDIT_USER_AGENT = 'crypto_airdrop_curator/1.0 (curation pipeline; human-reviewed)';
 
@@ -29,7 +30,7 @@ async function fetchSubreddit(name) {
     const children = r?.data?.data?.children;
     return Array.isArray(children) ? children : [];
   } catch (e) {
-    console.warn(`[Reddit] r/${name} fetch failed: ${e.message || e}`);
+    logger.warn({ err: e, subreddit: name }, '[Reddit] fetch failed');
     return [];
   }
 }
@@ -67,8 +68,9 @@ async function fetchRedditAirdrops({ subreddits = DEFAULT_SUBREDDITS } = {}) {
       });
     }
   }
-  console.log(
-    `[Reddit] collected ${all.length} airdrop-related posts from ${subreddits.length} subreddits (last ${LOOKBACK_DAYS} days)`
+  logger.info(
+    { count: all.length, subreddits: subreddits.length, lookbackDays: LOOKBACK_DAYS },
+    '[Reddit] collected airdrop-related posts'
   );
   return all;
 }

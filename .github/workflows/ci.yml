@@ -1,0 +1,79 @@
+name: CI
+
+# main에 push되거나 main을 대상으로 PR이 열릴 때만 실행.
+# (release/* 등 다른 브랜치 워크플로가 추가되면 여기에 추가.)
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# 같은 PR에 새 커밋이 push되면 이전 실행은 취소 — Actions 무료 분량 절약.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  backend-test:
+    name: Backend (Jest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          # 운영(Render free)이 Node 20대를 사용. RN/expo 54는 20.19.4+ 권장이라 LTS로 통일.
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      # mongodb-memory-server는 첫 실행 시 mongod 바이너리(~80MB)를 ~/.cache/mongodb-binaries에
+      # 다운로드한다. 캐시로 후속 실행을 단축.
+      - name: Cache mongodb-memory-server binaries
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/mongodb-binaries
+          key: ${{ runner.os }}-mongodb-mem-${{ hashFiles('backend/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-mongodb-mem-
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test -- --ci --reporters=default
+
+  frontend-install:
+    name: Frontend (install check)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      # 프론트엔드는 Metro 번들이나 EAS 빌드를 CI에서 돌리기엔 비용이 큼.
+      # 의존성 해상도(피어 디펜던시 충돌, 잘못된 lock) 회귀만 잡는다.
+      # 실제 빌드 회귀는 EAS Build에서 확인.
+      - name: Install dependencies
+        run: npm ci

@@ -1,4 +1,5 @@
 const axios = require('axios');
+const logger = require('../src/lib/logger');
 
 // CoinGecko simple/price는 ticker가 아닌 coin ID를 요구한다 ("USDT" X, "tether" O).
 // 자주 등장하는 토큰만 정적 매핑 — 매번 /search 호출은 quota 낭비.
@@ -58,7 +59,7 @@ async function resolveCoinId(tickerUpper) {
       return id;
     }
   } catch (e) {
-    console.warn(`[Market] search failed for ${tickerUpper}: ${e.message}`);
+    logger.warn({ err: e, ticker: tickerUpper }, '[Market] search failed');
   }
   // 매핑 실패 — 24시간 동안 재시도 안 함
   idCache.set(tickerUpper, { id: null, expiry: now() + ID_TTL_MS });
@@ -97,7 +98,7 @@ const getPriceData = async (req, res) => {
     }
     return res.json({ unsupported: true, ticker: tickerUpper });
   } catch (error) {
-    console.error('[Market] CoinGecko fetch failed:', error.message);
+    logger.error({ err: error }, '[Market] CoinGecko fetch failed');
     return res.status(502).json({ msg: 'External API error' });
   }
 };

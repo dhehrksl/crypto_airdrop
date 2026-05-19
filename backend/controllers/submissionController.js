@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const Submission = require('../models/Submission');
 const Airdrop = require('../models/Airdrop');
+const logger = require('../src/lib/logger');
 
 // 사용자가 새 제보를 만든다
 // POST /api/submissions
@@ -21,7 +22,7 @@ const createSubmission = async (req, res) => {
     });
     res.status(201).json({ ok: true, submission: doc });
   } catch (err) {
-    console.error('createSubmission error:', err.message);
+    (req?.log || logger).error({ err }, 'createSubmission failed');
     res.status(500).json({ msg: '제보 저장 중 오류' });
   }
 };
@@ -35,7 +36,7 @@ const listMySubmissions = async (req, res) => {
       .lean();
     res.json({ data: list });
   } catch (err) {
-    console.error('listMySubmissions error:', err.message);
+    (req?.log || logger).error({ err }, 'listMySubmissions failed');
     res.status(500).json({ msg: 'Server Error' });
   }
 };
@@ -52,7 +53,7 @@ const adminListSubmissions = async (req, res) => {
       .lean();
     res.json({ data: list });
   } catch (err) {
-    console.error('adminListSubmissions error:', err.message);
+    (req?.log || logger).error({ err }, 'adminListSubmissions failed');
     res.status(500).json({ msg: 'Server Error' });
   }
 };
@@ -100,7 +101,7 @@ const adminApproveSubmission = async (req, res) => {
 
     res.json({ ok: true, airdrop, submission: sub });
   } catch (err) {
-    console.error('adminApproveSubmission error:', err.message);
+    (req?.log || logger).error({ err }, 'adminApproveSubmission failed');
     res.status(500).json({ msg: 'Server Error' });
   }
 };
@@ -118,7 +119,7 @@ const adminRejectSubmission = async (req, res) => {
     await sub.save();
     res.json({ ok: true, submission: sub });
   } catch (err) {
-    console.error('adminRejectSubmission error:', err.message);
+    (req?.log || logger).error({ err }, 'adminRejectSubmission failed');
     res.status(500).json({ msg: 'Server Error' });
   }
 };

@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const logger = require('../src/lib/logger');
 
 // authMiddleware 이후에 연결. req.user.id에서 사용자 조회 후 isAdmin 검증.
 module.exports = async function (req, res, next) {
@@ -12,7 +13,7 @@ module.exports = async function (req, res, next) {
     }
     next();
   } catch (err) {
-    console.error('adminMiddleware error:', err.message);
+    (req?.log || logger).error({ err }, 'adminMiddleware failed');
     res.status(500).send('Server Error');
   }
 };

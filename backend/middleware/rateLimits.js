@@ -5,9 +5,12 @@
 const rateLimit = require('express-rate-limit');
 
 // 공통 옵션
+// 테스트(NODE_ENV=test)에서는 한도가 빠르게 소진되어 통합 테스트가 깨지므로 skip.
+// 운영/개발에서는 그대로 작동.
 const COMMON = {
   standardHeaders: 'draft-7', // RateLimit-* 헤더
   legacyHeaders: false,       // X-RateLimit-* 비활성
+  skip: () => process.env.NODE_ENV === 'test',
 };
 
 // 인증 (브루트포스 방어) — 5회 / 15분

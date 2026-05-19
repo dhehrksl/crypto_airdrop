@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const Airdrop = require('../models/Airdrop');
 const { isBlockedSource } = require('../src/config/blockedSources');
+const logger = require('../src/lib/logger');
 
 function buildUniqueHash(seed) {
   return 'curated:' + crypto.createHash('sha256').update(seed + Date.now().toString()).digest('hex').slice(0, 24);
@@ -55,7 +56,7 @@ const adminCreateAirdrop = async (req, res) => {
     const created = await Airdrop.create(doc);
     res.status(201).json({ ok: true, airdrop: created });
   } catch (err) {
-    console.error('adminCreateAirdrop error:', err.message);
+    (req?.log || logger).error({ err }, 'adminCreateAirdrop failed');
     res.status(500).json({ msg: 'Server Error' });
   }
 };
@@ -103,7 +104,7 @@ const adminUpdateAirdrop = async (req, res) => {
     await a.save();
     res.json({ ok: true, airdrop: a });
   } catch (err) {
-    console.error('adminUpdateAirdrop error:', err.message);
+    (req?.log || logger).error({ err }, 'adminUpdateAirdrop failed');
     res.status(500).json({ msg: 'Server Error' });
   }
 };
@@ -115,7 +116,7 @@ const adminDeleteAirdrop = async (req, res) => {
     if (result.deletedCount === 0) return res.status(404).json({ msg: 'Airdrop not found' });
     res.json({ ok: true });
   } catch (err) {
-    console.error('adminDeleteAirdrop error:', err.message);
+    (req?.log || logger).error({ err }, 'adminDeleteAirdrop failed');
     res.status(500).json({ msg: 'Server Error' });
   }
 };

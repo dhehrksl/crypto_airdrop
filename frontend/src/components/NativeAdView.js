@@ -9,6 +9,7 @@ import {
   requireSdk,
   getRequestOptions,
 } from '../services/admobConfig';
+import useAdConsent from '../hooks/useAdConsent';
 
 const Placeholder = () => (
   <View style={styles.container}>
@@ -19,7 +20,8 @@ const Placeholder = () => (
 
 const NativeAdView = () => {
   const sdk = requireSdk();
-  if (!sdk || !ADMOB_RECT_UNIT_ID) {
+  const { resolved, allowed } = useAdConsent();
+  if (!sdk || !ADMOB_RECT_UNIT_ID || !resolved || !allowed) {
     return <Placeholder />;
   }
   const { BannerAd, BannerAdSize } = sdk;

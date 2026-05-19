@@ -324,21 +324,29 @@ npm run scraper:once
 
 - Gemini API 무료 티어: 분당 15회, 일 1500회. 초과 시 새 데이터 안 들어옴.
 - 매시간 cron이 같은 항목 RSS에서 다시 fetch하지만 DB 중복은 unique_hash로 차단.
-- Express 5 + path-to-regexp v8 호환성 — 일부 정적 path 라우터 매칭 실패 케이스 있음. `server.js` 직접 등록으로 우회.
-- `BannerAdComponent` / `NativeAdView`는 현재 placeholder (실제 AdMob SDK 미통합).
+- Express 5 + path-to-regexp v8 호환성 — 일부 정적 path 라우터 매칭 실패 케이스 있음. `app.js`에 직접 등록으로 우회.
+- `BannerAdComponent` / `NativeAdView`는 `react-native-google-mobile-ads` v14로 실제 통합 완료 (UMP 동의 게이트 포함). app.json의 AdMob App ID/Unit ID가 비어있거나 Expo Go 환경에서는 자동으로 placeholder fallback.
 - 백엔드 HTTPS 미적용 — 운영 배포 시 reverse proxy(nginx, caddy 등) 필요.
 
 ---
 
 ## 10. 향후 작업 (출시 후 단계적)
 
-- AdMob SDK 실제 통합 + UMP(GDPR 동의 UI)
 - 푸시 알림 정밀화 (마감 임박, 신규 에어드랍 알림 토글)
 - 관리자 화면에 수정/삭제 UI (현재는 입력만)
 - 사용자 제보 알림 (승인/거절 결과를 제보자에게 푸시)
-- 백엔드 에러 모니터링 (Sentry)
 - 통계 대시보드 (어드민)
 - 사업자등록 시점에 결제 모듈 도입 (예: 프로젝트 유료 노출, VIP 멤버십)
+
+### 완료된 운영 항목
+- **에러 트래킹 (Sentry)** — 백엔드 `@sentry/node` v9 + 프론트엔드 `@sentry/react-native` v7 통합 완료 (2026-05-19). DSN은 백엔드 `SENTRY_DSN` 환경변수 / 프론트 `app.json` `expo.extra.sentry.dsn`으로 주입. DSN 미설정 시 자동 no-op이라 개발 환경 노이즈 없음. 상세 설정 절차는 `docs/deployment-render.md` 9번 섹션 참고.
+- **AdMob SDK + UMP 동의** — `react-native-google-mobile-ads` v14 통합 완료 (2026-05-19). `BannerAdComponent`(앵커 배너)와 `NativeAdView`(MEDIUM_RECTANGLE)를 4화면(Home/News/Detail/NewsDetail)에 통합. `requestConsent()`가 부팅 시 `AdsConsent.gatherConsent`로 GDPR/CCPA 동의 폼을 자동 처리하고, `useAdConsent` hook으로 광고 컴포넌트가 결과를 구독해 동의 전·거부 시 placeholder만 표시. 미동의는 NPA(non-personalized)로 폴백. 사용자가 해야 할 일은 AdMob 콘솔에서 App ID/Unit ID 발급 후 `app.json`에 입력 (`docs/launch-checklist.md` 6번 섹션 참고).
+- **Jest 단위 테스트 1차 셋업** — `jest` v29 + `supertest` v7 devDependency 추가, `jest.config.js` + `__tests__/setupEnv.js`로 환경 분리, `npm test` 스크립트 추가 (2026-05-20). 1차 커버리지: `_validators.js`(email/password/username 경계값 + 거부 케이스), `errorHandler.js`(production/development 분기 + headersSent 분기 + 로그 방어선), `authMiddleware.js`(헤더 부재/형식 오류/위조 토큰/만료 토큰/정상 토큰 분기).
+- **`server.js` → `app.js` 분리 + supertest 통합 테스트** (2026-05-20) — `app.js`는 미들웨어/라우트/에러핸들러만 책임지고 module.exports. `server.js`는 부팅 진입점으로 축소(dotenv → instrument → 보안 자가진단 → mongoose.connect → cron 등록 → listen). 스크래퍼 공유 상태는 `src/services/scraperRunner.js`로 분리해 HTTP 라우트와 cron이 같은 락/쿨다운을 공유. 통합 테스트는 `app.integration.test.js`에서 `/health`(helmet 헤더 포함), `/api/_debug/throw`(errorHandler dev 분기), `/api/scraper/status`, `/api/scraper/run`(admin 토큰 분기 + `runScraper` mock), 보호 라우트 401 분기, CORS dev-fallback.
+- **DB 통합 테스트 (mongodb-memory-server)** (2026-05-20) — `__tests__/helpers/db.js`가 in-memory mongo를 띄우고 mongoose 연결, 테스트 사이 컬렉션 정리. rate limit는 `NODE_ENV=test`에서 skip되도록 `rateLimits.js`에 가드 추가. `auth.integration.test.js`(가입 검증 분기 + 정규화 + 중복 + 로그인 케이스 = 20 tests), `submission.integration.test.js`(인증된 제보 생성/조회 + 본인 격리 + trim = 10 tests), `admin.integration.test.js`(계정 삭제 후 재로그인 거부, 비-admin 403, admin 200, status 필터, 제보 승인 → Airdrop 생성 e2e = 7 tests). 전체 회귀: 7 suites · **85 tests · ~5.7초**.
+- **GitHub Actions CI** (2026-05-20) — `.github/workflows/ci.yml`: push to main + pull_request 트리거. `backend-test` job(Node 20 + mongodb-binaries 캐시 + `npm test`) + `frontend-install` job(deps 회귀 검출). `concurrency`로 같은 PR 재실행 시 이전 워크플로 자동 취소. PR 머지 차단(required status check)은 GitHub Settings에서 사용자가 직접 설정 — 절차는 `docs/HOW_TO_RUN.md` 4번 섹션 참고.
+- **Sentry 검증 스크립트** (2026-05-20) — `backend/scripts/sentry-test.js` + `npm run sentry:test`. SENTRY_DSN 환경변수를 받아 `captureMessage` + `captureException` → `Sentry.flush(5s)`로 transport ack 확인. exit code로 CI/운영 점검 가능. DSN 누락 시 명확한 fail-fast 메시지. 절차는 `docs/deployment-render.md` 9.5 섹션 참고.
+- **구조화된 로깅 (pino + pino-http)** (2026-05-20) — `backend/src/lib/logger.js` 단일 인스턴스. production은 JSON 한 줄(Render Logs/CloudWatch 친화), development는 `pino-pretty`, test는 silent. `redact`로 password/token/Authorization 헤더 자동 마스킹. `pino-http`가 모든 요청을 method/url/status/responseTime 구조로 로깅(`/health`는 noise라 제외). 운영 코드의 ~80건 `console.*`을 모두 logger로 교체 — 서비스/컨트롤러/미들웨어 전부 reqId 기반 child logger를 통해 요청-스코프 로그 출력. **일회성 `scripts/**`는 의도적으로 console 유지** — 사람이 CLI에서 직접 읽는 도구라 JSON 출력이 부적절. 정책은 `backend/scripts/README.md`에 명시. 테스트 환경에서는 `LOG_LEVEL=silent`로 노이즈 0. 회귀: 7 suites · 85 tests 통과 유지.
 
 ---
 

@@ -1,5 +1,6 @@
 const Airdrop = require('../models/Airdrop');
 const News = require('../models/News');
+const logger = require('../src/lib/logger');
 
 const getAirdrops = async (req, res) => {
   try {
@@ -40,7 +41,7 @@ const getAirdrops = async (req, res) => {
     const airdrops = await Airdrop.find(filterQuery).sort(sortQuery).skip(skip).limit(limit);
     res.json({ data: airdrops, page, limit });
   } catch (error) {
-    console.error('Error fetching data:', error);
+    (req?.log || logger).error({ err: error }, 'fetch airdrops failed');
     res.status(500).json({ error: 'Internal Server Error' });
   }
 };
@@ -52,7 +53,7 @@ const getAirdropById = async (req, res) => {
     if (!item) return res.status(404).json({ error: 'Item not found' });
     res.json(item);
   } catch (error) {
-    console.error('Error fetching detail:', error);
+    (req?.log || logger).error({ err: error }, 'fetch airdrop detail failed');
     res.status(500).json({ error: 'Internal Server Error' });
   }
 };

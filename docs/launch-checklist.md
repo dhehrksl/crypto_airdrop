@@ -40,20 +40,31 @@
 - [ ] **연락처 이메일** — 응답 가능한 주소
 
 ### 6. AdMob 콘솔 설정
-- [ ] AdMob 계정 생성 후 광고 단위 ID 발급
-- [ ] **차단된 카테고리** 에서 다음을 차단
+**코드 측 통합은 완료 — 콘솔 작업과 ID 발급만 남음.**
+- [ ] https://admob.google.com 가입 후 **앱 추가** (Android/iOS 각각, 패키지명 일치 필수)
+  - Android: `com.dhehrksl.cryptoairdrop`
+  - iOS: `com.dhehrksl.cryptoairdrop`
+- [ ] **광고 단위(Ad Unit) 생성** — Banner와 Medium Rectangle 각각:
+  - `bannerAndroid` / `bannerIos` — 화면 하단 앵커 배너
+  - `rectAndroid` / `rectIos` — 피드 중간 슬롯
+- [ ] 발급된 ID를 `frontend/app.json` 두 곳에 입력:
+  - `expo.plugins[1][1].androidAppId` / `iosAppId` — **App ID** (`ca-app-pub-XXXX~YYYY`)
+  - `expo.extra.admob.*` — **Unit ID** (`ca-app-pub-XXXX/ZZZZ`)
+- [ ] **차단된 카테고리** 에서 다음을 차단:
   - 도박
   - 가상자산 거래소(한국 지역 규제)
   - 성인 (HG_NOT_FAMILY_SAFE)
-- [ ] **앱-광고 정책** > 자녀 대상 아님 체크
-- [ ] **UMP (User Messaging Platform)** 또는 자체 EU/한국 동의 UI 구현 (GDPR/PIPL 준수)
+- [ ] **앱-광고 정책** > 자녀 대상 아님 체크 (코드에서도 `tagForChildDirectedTreatment: false` 적용됨)
+- [ ] **개인정보 및 메시지 > GDPR 메시지** 만들기 (AdMob 콘솔 자동 생성 가능) — UMP 흐름은 `requestConsent()`가 자동 호출
+- [ ] (선택) **CCPA 메시지** — 미국 사용자 대상이면 만들기
+- [ ] EAS Build 후 실제 광고 노출 검증 — Expo Go에서는 SDK 미동작이라 placeholder만 보임
 
 ### 7. 백엔드 운영 준비
-- [ ] HTTPS 도메인 + TLS 인증서 (Let's Encrypt 등)
+- [ ] HTTPS 도메인 + TLS 인증서 (Render 자동 또는 Let's Encrypt 등)
 - [ ] `JWT_SECRET` 을 강력한 랜덤 문자열로 변경
 - [ ] `SCRAPER_ADMIN_TOKEN` 설정 (외부 트리거 차단)
 - [ ] MongoDB 백업 정책 수립
-- [ ] 에러 모니터링 (Sentry 등) 도입 권장
+- [ ] **Sentry DSN 발급** + Render `SENTRY_DSN` 환경변수 주입 (코드 통합은 완료, `docs/deployment-render.md` 9번 섹션 참고)
 
 ### 8. 변호사 검토 후 추가로 점검
 - [ ] "AI 매칭도" 라벨에 면책 툴팁 추가 권장 여부
@@ -80,6 +91,14 @@
 - [x] 부팅 자가 진단 강화 — production에서 `JWT_SECRET`/`MONGODB_URI`/`SCRAPER_ADMIN_TOKEN` 누락 시 부팅 거부
 - [x] 백엔드 불필요한 expo-* dependencies 제거 (`expo-server-sdk`만 유지)
 - [x] policies.js / docs/*.md의 `[앱 이름]` placeholder → "크립토 에어드랍"
+- [x] **AdMob SDK 실제 통합** — `react-native-google-mobile-ads` v14, BannerAd/Medium Rectangle 슬롯 4화면 통합, dev 빌드 Google 테스트 ID 자동 적용 (2026-05-19)
+- [x] **UMP(GDPR/CCPA) 동의 흐름** — `AdsConsent.gatherConsent`로 부팅 시 자동 폼 처리, 동의 미완료/거부 시 광고 게이트로 차단, NPA 폴백 (2026-05-19)
+- [x] **Sentry 에러 트래킹** — 백엔드 `@sentry/node` v9 + 프론트 `@sentry/react-native` v7. DSN 미설정 시 no-op (2026-05-19)
+- [x] **Jest 단위 테스트 1차** — validators/errorHandler/authMiddleware 35 tests. `npm test`로 실행 (2026-05-20)
+- [x] **supertest 통합 테스트** — `server.js` → `app.js` 분리(부팅 부작용 분리, scraperRunner 모듈 분리), `/health`/`/api/_debug/throw`/scraper admin 분기/보호 라우트 401/CORS dev-fallback (2026-05-20)
+- [x] **DB 통합 테스트 (mongodb-memory-server)** — auth(가입/로그인 검증·정규화·중복), submission(제보 생성/본인 격리), admin(403/200, 제보 승인 → Airdrop 생성 e2e). 전체 7 suites · **85 tests** 통과 (2026-05-20)
+- [x] **GitHub Actions CI** — push to main + PR 트리거. backend-test + frontend-install 두 job. 사용자가 GitHub Settings → Branches에서 required status check를 켜야 머지 차단됨 (2026-05-20)
+- [x] **구조화된 로깅 (pino + pino-http)** — production JSON / development pretty / test silent. 운영 코드 80여 건 console.* → logger.* 교체. 민감 정보(password/token/Authorization) 자동 마스킹 (2026-05-20)
 
 ## 코드 외부 결정 사항
 

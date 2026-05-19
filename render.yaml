@@ -36,6 +36,12 @@ services:
         sync: false          # https://aistudio.google.com/apikey
       - key: MONGODB_URI
         sync: false          # mongodb+srv://...@cluster0.xxxx.mongodb.net/crypto_airdrop
+      - key: SENTRY_DSN
+        sync: false          # Sentry 프로젝트 생성 후 DSN 붙여넣기. 비워두면 에러 트래킹 비활성.
+      - key: SENTRY_TRACES_SAMPLE_RATE
+        value: "0.1"         # 트랜잭션 샘플링 — 비용 제어용. 0~1 사이.
+      - key: SENTRY_PROFILES_SAMPLE_RATE
+        value: "0.1"         # 프로파일링 샘플링 — traces가 캡쳐된 트랜잭션 중 비율.
 
       # ===== CORS — 모바일 native는 origin 헤더 없어 자동 통과. 관리자 웹 등 추가하려면 여기에. =====
       - key: CORS_ALLOWED_ORIGINS

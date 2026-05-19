@@ -14,6 +14,7 @@ import {
   requireSdk,
   getRequestOptions,
 } from '../services/admobConfig';
+import useAdConsent from '../hooks/useAdConsent';
 
 const Placeholder = ({ label = '광고 영역' }) => (
   <View style={styles.placeholder}>
@@ -23,8 +24,9 @@ const Placeholder = ({ label = '광고 영역' }) => (
 
 const BannerAdComponent = () => {
   const sdk = requireSdk();
-  if (!sdk || !ADMOB_BANNER_UNIT_ID) {
-    // Expo Go 또는 운영 ID 미입력 — 광고 미표시
+  const { resolved, allowed } = useAdConsent();
+  // 정책상 UMP 동의가 완료되기 전엔 광고 요청 금지. allowed=false(사용자 거부 등)도 미표시.
+  if (!sdk || !ADMOB_BANNER_UNIT_ID || !resolved || !allowed) {
     return <Placeholder />;
   }
   const { BannerAd, BannerAdSize } = sdk;
