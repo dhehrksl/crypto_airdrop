@@ -1,25 +1,13 @@
 const Airdrop = require('../models/Airdrop');
-const News = require('../models/News');
 const logger = require('../src/lib/logger');
 
 const getAirdrops = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
-    const type = req.query.type || 'airdrops';
-    // type별로 다른 기본 limit: 뉴스는 최대 50개 표시 정책, 에어드랍/캘린더는 더 큰 수량 허용
-    const defaultLimit = type === 'news' ? 50 : 100;
     const requested = parseInt(req.query.limit);
-    const limit = Math.min(Number.isFinite(requested) && requested > 0 ? requested : defaultLimit, 200);
+    const limit = Math.min(Number.isFinite(requested) && requested > 0 ? requested : 100, 200);
     const sort = req.query.sort || 'latest';
     const skip = (page - 1) * limit;
-
-    if (type === 'news') {
-      const news = await News.find({})
-        .sort({ created_at: -1 })
-        .skip(skip)
-        .limit(limit);
-      return res.json({ data: news, page, limit });
-    }
 
     let sortQuery = { created_at: -1 };
     if (sort === 'ending_soon') sortQuery = { end_date: 1 };
@@ -48,8 +36,7 @@ const getAirdrops = async (req, res) => {
 
 const getAirdropById = async (req, res) => {
   try {
-    let item = await Airdrop.findById(req.params.id);
-    if (!item) item = await News.findById(req.params.id);
+    const item = await Airdrop.findById(req.params.id);
     if (!item) return res.status(404).json({ error: 'Item not found' });
     res.json(item);
   } catch (error) {

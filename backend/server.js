@@ -86,8 +86,9 @@ const cron = require('node-cron');
 const app = require('./app');
 const logger = require('./src/lib/logger');
 const { triggerScraper } = require('./src/services/scraperRunner');
-const { demoteExpiredAirdrops } = require('./src/services/retention');
+const { purgeExpiredAirdrops } = require('./src/services/retention');
 const { runCollection } = require('./controllers/adminDraftController');
+const { runDeadlineReminders } = require('./src/services/deadlineReminders');
 
 const PORT = process.env.PORT || 3000;
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/crypto_airdrop';
@@ -129,14 +130,14 @@ if (DRAFT_COLLECT_ENABLED && cron.validate(DRAFT_COLLECT_CRON)) {
   logger.info('[Draft Collect] cron disabled by DRAFT_COLLECT_ENABLED=false');
 }
 
-// 만료된 에어드랍 자동 강등 (매일 1회)
+// 만료된 에어드랍 자동 삭제 (매일 1회)
 const AIRDROP_RETENTION_CRON = process.env.AIRDROP_RETENTION_CRON || '0 3 * * *'; // 매일 03:00
 const AIRDROP_RETENTION_ENABLED = process.env.AIRDROP_RETENTION_ENABLED !== 'false';
 if (AIRDROP_RETENTION_ENABLED && cron.validate(AIRDROP_RETENTION_CRON)) {
   cron.schedule(
     AIRDROP_RETENTION_CRON,
     () => {
-      demoteExpiredAirdrops().catch((err) =>
+      purgeExpiredAirdrops().catch((err) =>
         logger.error({ err }, '[Retention] cron run failed')
       );
     },
@@ -150,6 +151,22 @@ if (AIRDROP_RETENTION_ENABLED && cron.validate(AIRDROP_RETENTION_CRON)) {
   );
 } else {
   logger.info('[Retention] cron disabled by AIRDROP_RETENTION_ENABLED=false');
+}
+
+// 마감 임박 에어드랍 리마인더 (매시 정각) — 관심/참여 중인 항목의 D-3/D-1/당일 푸시
+const REMINDER_CRON = process.env.REMINDER_CRON || '0 * * * *';
+const REMINDER_CRON_ENABLED = process.env.REMINDER_CRON_ENABLED !== 'false';
+if (REMINDER_CRON_ENABLED && cron.validate(REMINDER_CRON)) {
+  cron.schedule(REMINDER_CRON, () => {
+    runDeadlineReminders().catch((err) =>
+      logger.error({ err }, '[Reminders] cron run failed')
+    );
+  });
+  logger.info({ cron: REMINDER_CRON }, '[Reminders] cron scheduled');
+} else if (REMINDER_CRON_ENABLED) {
+  logger.warn({ cron: REMINDER_CRON }, '[Reminders] invalid REMINDER_CRON — cron disabled');
+} else {
+  logger.info('[Reminders] cron disabled by REMINDER_CRON_ENABLED=false');
 }
 
 app.listen(PORT, () => {
