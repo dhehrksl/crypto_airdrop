@@ -1,6 +1,7 @@
 import React, { useState, useContext } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, ScrollView } from 'react-native';
 import { AuthContext } from '../context/AuthContext';
+import { colors, radius } from '../constants/theme';
 
 const RegisterScreen = ({ navigation }) => {
   const [username, setUsername] = useState('');
@@ -85,6 +86,7 @@ const RegisterScreen = ({ navigation }) => {
       <TextInput
         style={styles.input}
         placeholder="사용자명 (영문/숫자/_/-, 3~20자)"
+        placeholderTextColor={colors.textMuted}
         value={username}
         onChangeText={setUsername}
         autoCapitalize="none"
@@ -93,6 +95,7 @@ const RegisterScreen = ({ navigation }) => {
       <TextInput
         style={styles.input}
         placeholder="이메일"
+        placeholderTextColor={colors.textMuted}
         value={email}
         onChangeText={setEmail}
         keyboardType="email-address"
@@ -102,6 +105,7 @@ const RegisterScreen = ({ navigation }) => {
       <TextInput
         style={styles.input}
         placeholder="비밀번호 (영문+숫자 포함, 8자 이상)"
+        placeholderTextColor={colors.textMuted}
         value={password}
         onChangeText={setPassword}
         secureTextEntry
@@ -138,60 +142,61 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 30,
     paddingVertical: 40,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.bg,
   },
   consentBlock: {
     marginTop: 8,
     marginBottom: 16,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.md,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.hairline,
   },
   consentRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8 },
   checkbox: {
-    width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: '#94A3B8',
+    width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: colors.textMuted,
     justifyContent: 'center', alignItems: 'center', marginRight: 10,
   },
-  checkboxOn: { backgroundColor: '#6366F1', borderColor: '#6366F1' },
-  checkmark: { color: '#FFFFFF', fontWeight: '900' },
-  consentLabel: { flex: 1, fontSize: 13, color: '#0F172A' },
-  consentLink: { fontSize: 13, color: '#6366F1', fontWeight: '700', textDecorationLine: 'underline' },
+  checkboxOn: { backgroundColor: colors.accent, borderColor: colors.accent },
+  checkmark: { color: colors.white, fontWeight: '900' },
+  consentLabel: { flex: 1, fontSize: 13, color: colors.textPrimary },
+  consentLink: { fontSize: 13, color: colors.accent, fontWeight: '700', textDecorationLine: 'underline' },
   title: {
     fontSize: 32,
     fontWeight: '800',
-    color: '#1E293B',
+    color: colors.textPrimary,
     textAlign: 'center',
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
-    color: '#64748B',
+    color: colors.textSecondary,
     textAlign: 'center',
     marginBottom: 40,
   },
   input: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surfaceAlt,
+    color: colors.textPrimary,
     paddingHorizontal: 20,
-    height: 50,
-    borderRadius: 10,
+    height: 52,
+    borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.hairline,
     fontSize: 16,
     marginBottom: 16,
   },
   button: {
-    backgroundColor: '#6366F1',
-    height: 50,
-    borderRadius: 10,
+    backgroundColor: colors.accent,
+    height: 52,
+    borderRadius: radius.md,
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 10,
   },
   buttonText: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontSize: 18,
     fontWeight: '700',
   },
@@ -202,11 +207,11 @@ const styles = StyleSheet.create({
   },
   footerText: {
     fontSize: 14,
-    color: '#64748B',
+    color: colors.textSecondary,
   },
   link: {
     fontSize: 14,
-    color: '#6366F1',
+    color: colors.accent,
     fontWeight: '700',
     marginLeft: 5,
   },

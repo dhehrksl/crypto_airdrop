@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, Alert } from 'react-native';
 import { WebView } from 'react-native-webview';
+import { colors, radius } from '../constants/theme';
 
 // gate: 'needs-confirm' (Alert 표시 중, WebView 미마운트) → 'confirmed' (WebView 렌더).
 // 매번 표시 — 외부 사이트 진입은 자산 손실 위험이 따르므로 사용자에게 항상 경각심을 준다.
@@ -36,14 +37,14 @@ const WebViewScreen = ({ route, navigation }) => {
   if (gate !== 'confirmed') {
     return (
       <View style={styles.gateView}>
-        <ActivityIndicator size="large" color="#6366F1" />
+        <ActivityIndicator size="large" color={colors.accent} />
         <Text style={styles.gateText}>안전 안내 확인 후 접속됩니다.</Text>
       </View>
     );
   }
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={styles.screen}>
       {showBanner && (
         <View style={styles.banner}>
           <Text style={styles.bannerText} numberOfLines={2}>
@@ -58,8 +59,8 @@ const WebViewScreen = ({ route, navigation }) => {
         source={{ uri: url }}
         startInLoadingState={true}
         renderLoading={() => (
-          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-            <ActivityIndicator size="large" />
+          <View style={styles.loading}>
+            <ActivityIndicator size="large" color={colors.accent} />
           </View>
         )}
         style={{ flex: 1 }}
@@ -69,34 +70,41 @@ const WebViewScreen = ({ route, navigation }) => {
 };
 
 const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: colors.bg },
+  loading: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.bg,
+  },
   gateView: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.bg,
     paddingHorizontal: 30,
   },
-  gateText: { marginTop: 16, fontSize: 14, color: '#64748B', textAlign: 'center' },
+  gateText: { marginTop: 16, fontSize: 14, color: colors.textSecondary, textAlign: 'center' },
   banner: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 14,
     paddingVertical: 10,
-    backgroundColor: '#FEF3C7',
+    backgroundColor: colors.warningSoft,
     borderBottomWidth: 1,
-    borderBottomColor: '#FCD34D',
+    borderBottomColor: colors.hairline,
   },
-  bannerText: { flex: 1, fontSize: 12, color: '#92400E', lineHeight: 18, fontWeight: '600' },
+  bannerText: { flex: 1, fontSize: 12, color: colors.warning, lineHeight: 18, fontWeight: '600' },
   bannerClose: {
     width: 28,
     height: 28,
-    borderRadius: 14,
-    backgroundColor: '#FFFFFF',
+    borderRadius: radius.lg,
+    backgroundColor: colors.surfaceAlt,
     justifyContent: 'center',
     alignItems: 'center',
     marginLeft: 8,
   },
-  bannerCloseText: { color: '#92400E', fontWeight: '800' },
+  bannerCloseText: { color: colors.warning, fontWeight: '800' },
 });
 
 export default WebViewScreen;

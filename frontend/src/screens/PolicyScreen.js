@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { PRIVACY_POLICY_KO, TERMS_OF_SERVICE_KO } from '../constants/policies';
+import { colors, radius } from '../constants/theme';
 
 const PolicyScreen = ({ route, navigation }) => {
   const kind = route.params?.kind === 'terms' ? 'terms' : 'privacy';
@@ -24,7 +25,7 @@ const PolicyScreen = ({ route, navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFFFFF' },
+  container: { flex: 1, backgroundColor: colors.bg },
   headerBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -33,20 +34,20 @@ const styles = StyleSheet.create({
     paddingTop: 50,
     paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    borderBottomColor: colors.hairline,
   },
   closeButton: {
     width: 32,
     height: 32,
-    borderRadius: 16,
-    backgroundColor: '#F1F5F9',
+    borderRadius: radius.lg,
+    backgroundColor: colors.surfaceAlt,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  closeButtonText: { fontSize: 16, fontWeight: '700', color: '#0F172A' },
-  headerTitle: { fontSize: 17, fontWeight: '800', color: '#0F172A' },
+  closeButtonText: { fontSize: 16, fontWeight: '700', color: colors.textSecondary },
+  headerTitle: { fontSize: 17, fontWeight: '800', color: colors.textPrimary },
   body: { paddingHorizontal: 20, paddingVertical: 20, paddingBottom: 60 },
-  text: { fontSize: 14, lineHeight: 22, color: '#334155' },
+  text: { fontSize: 14, lineHeight: 22, color: colors.textSecondary },
 });
 
 export default PolicyScreen;

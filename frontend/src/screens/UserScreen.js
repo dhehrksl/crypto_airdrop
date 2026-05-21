@@ -11,12 +11,39 @@ import {
 } from 'react-native';
 import { AuthContext } from '../context/AuthContext';
 import useMyAirdrops from '../hooks/useMyAirdrops';
+import useWatchlist from '../hooks/useWatchlist';
 import { deleteAccount as apiDeleteAccount } from '../services/api';
+import { colors, radius } from '../constants/theme';
+
+// 마감까지 남은 시간을 사람이 읽는 문자열로. urgent = 3일 이내.
+function formatCountdown(endDate) {
+  if (!endDate) return null;
+  const ms = new Date(endDate).getTime() - Date.now();
+  if (ms <= 0) return { text: '마감됨', urgent: false, expired: true };
+  const d = Math.floor(ms / 86400000);
+  const h = Math.floor((ms % 86400000) / 3600000);
+  return {
+    text: d > 0 ? `${d}일 ${h}시간 남음` : `${h}시간 남음`,
+    urgent: ms < 3 * 86400000,
+    expired: false,
+  };
+}
 
 const UserScreen = ({ navigation }) => {
   const { userInfo, logout } = useContext(AuthContext);
-  const { participatedAirdrops, loading, refreshing, onRefresh } = useMyAirdrops();
+  const {
+    participatedAirdrops,
+    loading,
+    refreshing,
+    onRefresh: refreshParticipated,
+  } = useMyAirdrops();
+  const { watchlist, onRefresh: refreshWatchlist } = useWatchlist();
   const [deleting, setDeleting] = useState(false);
+
+  const onRefresh = () => {
+    refreshParticipated();
+    refreshWatchlist();
+  };
 
   const handleDeleteAccount = () => {
     Alert.alert(
@@ -46,20 +73,49 @@ const UserScreen = ({ navigation }) => {
     );
   };
 
-  const renderAirdropItem = ({ item }) => (
-    <TouchableOpacity
-      style={styles.airdropCard}
-      onPress={() => navigation.navigate('Detail', { airdrop: item })}
-    >
-      <Text style={styles.airdropTitle} numberOfLines={1}>
-        {item.projectName || item.title}
-      </Text>
-      <Text style={styles.airdropDate}>{item.is_airdrop ? '에어드랍' : '정보'}</Text>
-    </TouchableOpacity>
-  );
+  // 참여/관심 공용 카드 — 진행률 + 마감 카운트다운 표시
+  const renderTrackedCard = (item) => {
+    const tasks = Array.isArray(item.tasks) ? item.tasks : [];
+    const completed = item.tracking?.completedTasks?.length || 0;
+    const countdown = formatCountdown(item.end_date);
+    return (
+      <TouchableOpacity
+        key={item._id}
+        style={styles.airdropCard}
+        onPress={() => navigation.navigate('Detail', { airdrop: item })}
+        activeOpacity={0.8}
+      >
+        <View style={{ flex: 1 }}>
+          <Text style={styles.airdropTitle} numberOfLines={1}>
+            {item.projectName || item.title}
+          </Text>
+          <View style={styles.metaRow}>
+            {tasks.length > 0 && (
+              <Text style={styles.progressBadge}>
+                진행 {completed}/{tasks.length}
+              </Text>
+            )}
+            {countdown && (
+              <Text
+                style={[
+                  styles.countdownBadge,
+                  countdown.expired
+                    ? styles.countdownExpired
+                    : countdown.urgent && styles.countdownUrgent,
+                ]}
+              >
+                {countdown.expired ? '마감됨' : `⏱ ${countdown.text}`}
+              </Text>
+            )}
+          </View>
+        </View>
+        <Text style={styles.chev}>›</Text>
+      </TouchableOpacity>
+    );
+  };
 
-  return (
-    <View style={styles.container}>
+  const listHeader = (
+    <>
       <View style={styles.header}>
         <Text style={styles.title}>내 정보</Text>
         <TouchableOpacity style={styles.logoutButton} onPress={logout}>
@@ -83,7 +139,7 @@ const UserScreen = ({ navigation }) => {
           style={styles.linkRow}
           onPress={() => navigation.navigate('SubmitAirdrop')}
         >
-          <Text style={styles.linkLabel}>📤 에어드랍 제보하기</Text>
+          <Text style={styles.linkLabel}>📤  에어드랍 제보하기</Text>
           <Text style={styles.chev}>›</Text>
         </TouchableOpacity>
         {userInfo?.isAdmin && (
@@ -91,8 +147,8 @@ const UserScreen = ({ navigation }) => {
             style={styles.linkRow}
             onPress={() => navigation.navigate('Admin')}
           >
-            <Text style={[styles.linkLabel, { color: '#6366F1' }]}>🛠 관리자 페이지</Text>
-            <Text style={[styles.chev, { color: '#6366F1' }]}>›</Text>
+            <Text style={[styles.linkLabel, { color: colors.accentBright }]}>🛠  관리자 페이지</Text>
+            <Text style={[styles.chev, { color: colors.accentBright }]}>›</Text>
           </TouchableOpacity>
         )}
         <TouchableOpacity
@@ -114,31 +170,54 @@ const UserScreen = ({ navigation }) => {
           onPress={handleDeleteAccount}
           disabled={deleting}
         >
-          <Text style={[styles.linkLabel, { color: '#DC2626' }]}>
+          <Text style={[styles.linkLabel, { color: colors.danger }]}>
             {deleting ? '처리 중...' : '회원 탈퇴'}
           </Text>
-          <Text style={[styles.chev, { color: '#DC2626' }]}>›</Text>
+          <Text style={[styles.chev, { color: colors.danger }]}>›</Text>
         </TouchableOpacity>
       </View>
 
-      <Text style={styles.sectionTitle}>참여한 에어드랍</Text>
+      <Text style={styles.sectionTitle}>⭐  관심 목록</Text>
+      <View style={styles.sectionBody}>
+        {watchlist.length > 0 ? (
+          watchlist.map((item) => renderTrackedCard(item))
+        ) : (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>관심 등록한 에어드랍이 없습니다.</Text>
+          </View>
+        )}
+      </View>
 
+      <Text style={styles.sectionTitle}>✅  참여한 에어드랍</Text>
+    </>
+  );
+
+  return (
+    <View style={styles.container}>
       {loading && !refreshing ? (
-        <ActivityIndicator size="large" color="#6366F1" style={{ marginTop: 20 }} />
+        <>
+          {listHeader}
+          <ActivityIndicator size="large" color={colors.accent} style={{ marginTop: 20 }} />
+        </>
       ) : (
         <FlatList
           data={participatedAirdrops}
-          renderItem={renderAirdropItem}
+          renderItem={({ item }) => renderTrackedCard(item)}
           keyExtractor={(item) => item._id}
-          style={styles.list}
-          contentContainerStyle={{ flexGrow: 1 }}
+          ListHeaderComponent={listHeader}
+          contentContainerStyle={styles.listContent}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyText}>아직 참여한 에어드랍이 없습니다.</Text>
             </View>
           }
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#6366F1']} />
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.accent}
+              colors={[colors.accent]}
+            />
           }
         />
       )}
@@ -147,7 +226,8 @@ const UserScreen = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8FAFC', paddingTop: 60 },
+  container: { flex: 1, backgroundColor: colors.bg, paddingTop: 60 },
+  listContent: { paddingBottom: 32 },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -155,25 +235,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     marginBottom: 20,
   },
-  title: { fontSize: 28, fontWeight: '800', color: '#1E293B' },
+  title: { fontSize: 27, fontWeight: '800', color: colors.textPrimary },
   logoutButton: {
-    backgroundColor: '#FEE2E2',
+    backgroundColor: colors.dangerSoft,
     paddingHorizontal: 14,
     paddingVertical: 8,
-    borderRadius: 10,
+    borderRadius: radius.md,
   },
-  logoutButtonText: { color: '#DC2626', fontSize: 14, fontWeight: '700' },
+  logoutButtonText: { color: colors.danger, fontSize: 13, fontWeight: '700' },
   infoCard: {
     marginHorizontal: 20,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 20,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: 18,
     marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 3,
+    borderWidth: 1,
+    borderColor: colors.hairline,
   },
   infoRow: {
     flexDirection: 'row',
@@ -181,55 +258,76 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    borderBottomColor: colors.hairline,
   },
-  label: { fontSize: 16, color: '#64748B' },
-  value: { fontSize: 16, color: '#1E293B', fontWeight: '600' },
+  label: { fontSize: 15, color: colors.textSecondary },
+  value: { fontSize: 15, color: colors.textPrimary, fontWeight: '600' },
   linkGroup: {
     marginHorizontal: 20,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
     marginBottom: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 3,
+    borderWidth: 1,
+    borderColor: colors.hairline,
   },
   linkRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: 15,
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    borderBottomColor: colors.hairline,
   },
-  linkLabel: { fontSize: 15, fontWeight: '600', color: '#334155' },
-  chev: { fontSize: 20, color: '#94A3B8' },
+  linkLabel: { fontSize: 15, fontWeight: '600', color: colors.textPrimary },
+  chev: { fontSize: 20, color: colors.textMuted },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#334155',
+    fontSize: 19,
+    fontWeight: '800',
+    color: colors.textPrimary,
     paddingHorizontal: 20,
-    marginBottom: 10,
+    marginBottom: 12,
   },
-  list: { width: '100%', paddingHorizontal: 20 },
+  sectionBody: { marginBottom: 24 },
   airdropCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     padding: 16,
-    borderRadius: 12,
+    borderRadius: radius.md,
     marginBottom: 10,
+    marginHorizontal: 20,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.hairline,
   },
-  airdropTitle: { fontSize: 15, fontWeight: '600', color: '#1E293B', flex: 1 },
-  airdropDate: { fontSize: 12, color: '#94A3B8' },
-  emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
-  emptyText: { fontSize: 15, color: '#94A3B8' },
+  airdropTitle: { fontSize: 15, fontWeight: '700', color: colors.textPrimary, marginBottom: 7 },
+  metaRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' },
+  progressBadge: {
+    fontSize: 11.5,
+    fontWeight: '800',
+    color: colors.accentBright,
+    backgroundColor: colors.accentSoft,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: radius.sm,
+    marginRight: 6,
+    overflow: 'hidden',
+  },
+  countdownBadge: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: colors.cyan,
+    backgroundColor: colors.cyanSoft,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: radius.sm,
+    overflow: 'hidden',
+  },
+  countdownUrgent: { color: colors.warning, backgroundColor: colors.warningSoft },
+  countdownExpired: { color: colors.textMuted, backgroundColor: colors.surfaceAlt },
+  emptyContainer: { justifyContent: 'center', alignItems: 'center', padding: 24 },
+  emptyText: { fontSize: 14, color: colors.textMuted },
 });
 
 export default UserScreen;

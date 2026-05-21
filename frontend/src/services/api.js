@@ -64,10 +64,6 @@ export const getAirdrops = (sortType) => {
   return apiClient.get(`/api/airdrops?sort=${sortType}&type=airdrops`);
 };
 
-export const getNews = () => {
-  return apiClient.get('/api/airdrops?type=news');
-};
-
 export const registerPushToken = (token, userId) => {
     return apiClient.post('/api/users/push-token', { token, userId });
 };
@@ -88,6 +84,28 @@ export const unmarkAsParticipated = (airdropId) => {
 
 export const deleteAccount = () => {
   return apiClient.delete('/api/user/account');
+};
+
+// --- 관심 목록 / 단계별 진행 추적 (airdrop-tracking-toolkit) ---
+
+export const getWatchlist = () => {
+  return apiClient.get('/api/user/airdrops/watchlist');
+};
+
+export const addToWatchlist = (airdropId) => {
+  return apiClient.post(`/api/user/airdrops/${airdropId}/watchlist`);
+};
+
+export const removeFromWatchlist = (airdropId) => {
+  return apiClient.delete(`/api/user/airdrops/${airdropId}/watchlist`);
+};
+
+export const getAirdropTracking = (airdropId) => {
+  return apiClient.get(`/api/user/airdrops/${airdropId}/tracking`);
+};
+
+export const setTaskProgress = (airdropId, index, completed) => {
+  return apiClient.put(`/api/user/airdrops/${airdropId}/tasks/${index}`, { completed });
 };
 
 // --- 제보 (사용자) ---

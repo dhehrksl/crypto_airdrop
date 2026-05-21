@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { submitAirdrop } from '../services/api';
+import { colors, radius } from '../constants/theme';
 
 const SubmitAirdropScreen = ({ navigation }) => {
   const [title, setTitle] = useState('');
@@ -111,7 +112,7 @@ const SubmitAirdropScreen = ({ navigation }) => {
           onPress={handleSubmit}
           disabled={submitting}
         >
-          {submitting ? <ActivityIndicator color="#FFF" /> : <Text style={styles.submitText}>제보 제출</Text>}
+          {submitting ? <ActivityIndicator color={colors.white} /> : <Text style={styles.submitText}>제보 제출</Text>}
         </TouchableOpacity>
       </View>
     </View>
@@ -126,14 +127,14 @@ const Field = ({ label, value, onChange, multiline, ...rest }) => (
       value={value}
       onChangeText={onChange}
       multiline={multiline}
-      placeholderTextColor="#94A3B8"
+      placeholderTextColor={colors.textMuted}
       {...rest}
     />
   </View>
 );
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8FAFC' },
+  container: { flex: 1, backgroundColor: colors.bg },
   headerBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -142,39 +143,39 @@ const styles = StyleSheet.create({
     paddingTop: 50,
     paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-    backgroundColor: '#FFFFFF',
+    borderBottomColor: colors.hairline,
+    backgroundColor: colors.bgElevated,
   },
   closeBtn: {
     width: 32,
     height: 32,
-    borderRadius: 16,
-    backgroundColor: '#F1F5F9',
+    borderRadius: radius.lg,
+    backgroundColor: colors.surfaceAlt,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  closeBtnText: { color: '#0F172A', fontWeight: '700' },
-  headerTitle: { fontSize: 17, fontWeight: '800', color: '#0F172A' },
+  closeBtnText: { color: colors.textPrimary, fontWeight: '700' },
+  headerTitle: { fontSize: 17, fontWeight: '800', color: colors.textPrimary },
   body: { padding: 20, paddingBottom: 120 },
-  help: { fontSize: 13, color: '#64748B', marginBottom: 18, lineHeight: 20 },
+  help: { fontSize: 13, color: colors.textSecondary, marginBottom: 18, lineHeight: 20 },
   field: { marginBottom: 14 },
-  fieldLabel: { fontSize: 13, fontWeight: '700', color: '#334155', marginBottom: 6 },
+  fieldLabel: { fontSize: 13, fontWeight: '700', color: colors.textPrimary, marginBottom: 6 },
   input: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surfaceAlt,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 10,
+    borderColor: colors.hairline,
+    borderRadius: radius.md,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 14,
-    color: '#0F172A',
+    color: colors.textPrimary,
   },
   inputMulti: { minHeight: 100, textAlignVertical: 'top' },
   disclaimer: {
     fontSize: 12,
-    color: '#78350F',
-    backgroundColor: '#FEF3C7',
-    borderRadius: 10,
+    color: colors.warning,
+    backgroundColor: colors.warningSoft,
+    borderRadius: radius.md,
     padding: 12,
     lineHeight: 18,
     marginTop: 10,
@@ -187,18 +188,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 12,
     paddingBottom: 30,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.bgElevated,
     borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
+    borderTopColor: colors.hairline,
   },
   submitBtn: {
     height: 52,
-    borderRadius: 14,
-    backgroundColor: '#6366F1',
+    borderRadius: radius.lg,
+    backgroundColor: colors.accent,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  submitText: { color: '#FFFFFF', fontWeight: '800', fontSize: 16 },
+  submitText: { color: colors.white, fontWeight: '800', fontSize: 16 },
 });
 
 export default SubmitAirdropScreen;

@@ -15,6 +15,7 @@ import {
   getRequestOptions,
 } from '../services/admobConfig';
 import useAdConsent from '../hooks/useAdConsent';
+import { colors } from '../constants/theme';
 
 const Placeholder = ({ label = '광고 영역' }) => (
   <View style={styles.placeholder}>
@@ -45,15 +46,23 @@ const BannerAdComponent = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { alignItems: 'center', justifyContent: 'center', minHeight: 50, backgroundColor: '#F1F5F9' },
+  container: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 50,
+    backgroundColor: colors.bgElevated,
+    borderTopWidth: 1,
+    borderTopColor: colors.hairline,
+  },
   placeholder: {
     alignItems: 'center',
     justifyContent: 'center',
     height: 50,
-    backgroundColor: '#F1F5F9',
-    marginVertical: 5,
+    backgroundColor: colors.bgElevated,
+    borderTopWidth: 1,
+    borderTopColor: colors.hairline,
   },
-  placeholderText: { fontSize: 11, color: '#94A3B8' },
+  placeholderText: { fontSize: 11, color: colors.textMuted },
 });
 
 export default BannerAdComponent;

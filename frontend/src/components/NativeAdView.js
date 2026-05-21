@@ -10,6 +10,7 @@ import {
   getRequestOptions,
 } from '../services/admobConfig';
 import useAdConsent from '../hooks/useAdConsent';
+import { colors, radius } from '../constants/theme';
 
 const Placeholder = () => (
   <View style={styles.container}>
@@ -45,24 +46,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     height: 120,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: colors.surface,
     marginVertical: 8,
     marginHorizontal: 16,
-    borderRadius: 12,
+    borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.hairline,
   },
   adWrap: {
     alignItems: 'center',
     justifyContent: 'center',
     marginVertical: 8,
     marginHorizontal: 16,
-    borderRadius: 12,
+    borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.hairline,
     overflow: 'hidden',
     paddingTop: 18,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
   },
   // Google AdMob 정책상 광고 영역에는 "광고/Ad/Sponsored" 라벨을 명확히 표시.
   adLabel: {
@@ -71,15 +72,15 @@ const styles = StyleSheet.create({
     left: 8,
     fontSize: 10,
     fontWeight: '700',
-    color: '#64748B',
-    backgroundColor: '#FFFFFF',
+    color: colors.textSecondary,
+    backgroundColor: colors.surfaceAlt,
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
     overflow: 'hidden',
     zIndex: 2,
   },
-  placeholderText: { fontSize: 11, color: '#94A3B8' },
+  placeholderText: { fontSize: 11, color: colors.textMuted },
 });
 
 export default NativeAdView;

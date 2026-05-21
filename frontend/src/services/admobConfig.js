@@ -9,10 +9,16 @@
 //    PIPA(한국) 동의는 DisclaimerGate에서 별도로 처리됨.
 
 import { Platform } from 'react-native';
-import Constants from 'expo-constants';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
 
 const extra = Constants.expoConfig?.extra ?? Constants.manifest?.extra ?? {};
 const cfg = extra.admob || {};
+
+// Expo Go 여부 — Expo Go에는 네이티브 광고 모듈이 없다. require()를 호출하는 순간
+// react-native-google-mobile-ads가 TurboModuleRegistry.getEnforcing로 네이티브 모듈을
+// 강제 조회하며 try/catch로 잡히지 않는 치명적 에러를 던지므로, Expo Go에서는
+// require 자체를 시도하지 않는다. (실제 광고는 EAS Build / dev-client에서만 동작)
+const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
 
 // Google AdMob 공식 테스트 ID (https://developers.google.com/admob/android/test-ads)
 // dev 빌드에서만 사용. 운영 노출 시 정책 위반 → 계정 정지 위험.
@@ -48,10 +54,16 @@ let _sdkLoadAttempted = false;
 export function requireSdk() {
   if (_sdkLoadAttempted) return _sdkModule;
   _sdkLoadAttempted = true;
+  // Expo Go에서는 require 자체를 건너뛴다 — getEnforcing 치명적 에러 회피.
+  if (isExpoGo) {
+    if (__DEV__) console.log('[AdMob] Expo Go 환경 — 광고 SDK 비활성, placeholder 사용');
+    _sdkModule = null;
+    return null;
+  }
   try {
     _sdkModule = require('react-native-google-mobile-ads');
   } catch (e) {
-    if (__DEV__) console.log('[AdMob] SDK not available (Expo Go?) — using placeholder');
+    if (__DEV__) console.log('[AdMob] SDK not available — using placeholder');
     _sdkModule = null;
   }
   return _sdkModule;

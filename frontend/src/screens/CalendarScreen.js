@@ -10,11 +10,12 @@ import {
 } from 'react-native';
 import { Calendar } from 'react-native-calendars';
 import { getAirdrops } from '../services/api';
+import { colors, radius } from '../constants/theme';
 
-const PRIMARY = '#6366F1';
-const DOT_DEFAULT = '#6366F1';
-const DOT_CONFIRMED = '#10B981';
-const DOT_CLOSING = '#EF4444';
+const PRIMARY = colors.accent;
+const DOT_DEFAULT = colors.accent;
+const DOT_CONFIRMED = colors.success;
+const DOT_CLOSING = colors.danger;
 
 const toDateKey = (date) => {
   const d = new Date(date);
@@ -142,20 +143,25 @@ const CalendarScreen = ({ navigation }) => {
     <View style={styles.container}>
       <Text style={styles.headerTitle}>에어드랍 캘린더</Text>
 
-      <Calendar
-        onDayPress={onDayPress}
-        markedDates={markedDates}
-        theme={{
-          selectedDayBackgroundColor: PRIMARY,
-          selectedDayTextColor: '#ffffff',
-          todayTextColor: PRIMARY,
-          dotColor: PRIMARY,
-          arrowColor: PRIMARY,
-          monthTextColor: '#1E293B',
-          textSectionTitleColor: '#64748B',
-          textDayHeaderFontWeight: 'bold',
-        }}
-      />
+      <View style={styles.calendarCard}>
+        <Calendar
+          onDayPress={onDayPress}
+          markedDates={markedDates}
+          theme={{
+            calendarBackground: colors.surface,
+            selectedDayBackgroundColor: PRIMARY,
+            selectedDayTextColor: colors.white,
+            todayTextColor: PRIMARY,
+            dayTextColor: colors.textPrimary,
+            dotColor: PRIMARY,
+            arrowColor: PRIMARY,
+            monthTextColor: colors.textPrimary,
+            textSectionTitleColor: colors.textSecondary,
+            textDisabledColor: colors.textMuted,
+            textDayHeaderFontWeight: 'bold',
+          }}
+        />
+      </View>
 
       <View style={styles.legendRow}>
         <View style={styles.legendItem}>
@@ -175,7 +181,7 @@ const CalendarScreen = ({ navigation }) => {
       <Text style={styles.selectedHeader}>{selectedHeader}</Text>
 
       {loading ? (
-        <ActivityIndicator size="large" color={PRIMARY} style={{ marginTop: 20 }} />
+        <ActivityIndicator size="large" color={colors.accent} style={{ marginTop: 20 }} />
       ) : (
         <FlatList
           data={selectedDateAirdrops}
@@ -185,7 +191,7 @@ const CalendarScreen = ({ navigation }) => {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={() => fetchAirdropsForCalendar(true)}
-              colors={[PRIMARY]}
+              colors={[colors.accent]}
             />
           }
           ListEmptyComponent={
@@ -202,15 +208,23 @@ const CalendarScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.bg,
     paddingTop: 50,
   },
   headerTitle: {
     fontSize: 24,
     fontWeight: '800',
-    color: '#1E293B',
+    color: colors.textPrimary,
     paddingHorizontal: 20,
     marginBottom: 12,
+  },
+  calendarCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    marginHorizontal: 16,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.hairline,
   },
   legendRow: {
     flexDirection: 'row',
@@ -220,11 +234,11 @@ const styles = StyleSheet.create({
   },
   legendItem: { flexDirection: 'row', alignItems: 'center' },
   legendDot: { width: 8, height: 8, borderRadius: 4, marginRight: 6 },
-  legendText: { fontSize: 12, color: '#64748B', fontWeight: '600' },
+  legendText: { fontSize: 12, color: colors.textSecondary, fontWeight: '600' },
   selectedHeader: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#334155',
+    color: colors.textPrimary,
     paddingHorizontal: 20,
     marginTop: 8,
     marginBottom: 8,
@@ -235,12 +249,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   airdropItem: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     padding: 16,
-    borderRadius: 12,
+    borderRadius: radius.md,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: '#F1F5F9',
+    borderColor: colors.hairline,
   },
   itemHeader: {
     flexDirection: 'row',
@@ -252,22 +266,22 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     fontWeight: '700',
-    color: '#1E293B',
+    color: colors.textPrimary,
   },
-  airdropItemDate: { fontSize: 12, color: '#64748B', marginTop: 4 },
-  airdropItemMeta: { fontSize: 11, color: '#94A3B8', marginTop: 2 },
+  airdropItemDate: { fontSize: 12, color: colors.textSecondary, marginTop: 4 },
+  airdropItemMeta: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
   confirmedBadge: {
-    backgroundColor: '#DCFCE7',
+    backgroundColor: '#0F261F',
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 8,
+    borderRadius: radius.sm,
     marginLeft: 8,
   },
-  confirmedBadgeText: { color: '#166534', fontSize: 10, fontWeight: '800' },
+  confirmedBadgeText: { color: colors.success, fontSize: 10, fontWeight: '800' },
   emptyListText: {
     textAlign: 'center',
     marginTop: 30,
-    color: '#94A3B8',
+    color: colors.textMuted,
     fontSize: 13,
   },
 });

@@ -23,6 +23,7 @@ import {
   adminDraftFromUrl,
   adminTriggerDraftCollect,
 } from '../services/api';
+import { colors, radius } from '../constants/theme';
 
 const AdminScreen = ({ navigation }) => {
   const [tab, setTab] = useState('drafts'); // drafts | pending | create
@@ -219,7 +220,7 @@ const AdminScreen = ({ navigation }) => {
     <View key={d._id} style={styles.card}>
       <View style={styles.draftHeader}>
         <Text style={styles.cardTitle} numberOfLines={2}>{d.title}</Text>
-        <View style={[styles.scoreChip, { backgroundColor: d.trend_score >= 80 ? '#10B981' : d.trend_score >= 60 ? '#F59E0B' : '#EF4444' }]}>
+        <View style={[styles.scoreChip, { backgroundColor: d.trend_score >= 80 ? colors.success : d.trend_score >= 60 ? colors.warning : colors.danger }]}>
           <Text style={styles.scoreChipText}>{d.trend_score}%</Text>
         </View>
       </View>
@@ -281,7 +282,7 @@ const AdminScreen = ({ navigation }) => {
       {tab === 'drafts' ? (
         <ScrollView
           contentContainerStyle={{ padding: 16, paddingBottom: 60 }}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchDrafts(); }} colors={['#6366F1']} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchDrafts(); }} colors={[colors.accent]} tintColor={colors.accent} />}
         >
           {/* 수집 트리거 + URL 붙여넣기 영역 */}
           <View style={styles.actionPanel}>
@@ -290,7 +291,7 @@ const AdminScreen = ({ navigation }) => {
               onPress={handleCollect}
               disabled={collectBusy}
             >
-              {collectBusy ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.collectBtnText}>↻ 커뮤니티 자동 수집</Text>}
+              {collectBusy ? <ActivityIndicator color={colors.white} /> : <Text style={styles.collectBtnText}>↻ 커뮤니티 자동 수집</Text>}
             </TouchableOpacity>
             <Text style={styles.actionHint}>Reddit/Telegram에서 7일치 게시글 → AI 추출 → 아래 목록에 추가</Text>
 
@@ -302,7 +303,7 @@ const AdminScreen = ({ navigation }) => {
                 onChangeText={setUrlInput}
                 autoCapitalize="none"
                 autoCorrect={false}
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={colors.textMuted}
                 editable={!urlBusy}
               />
               <TouchableOpacity
@@ -310,13 +311,13 @@ const AdminScreen = ({ navigation }) => {
                 onPress={handleFromUrl}
                 disabled={urlBusy || !urlInput.trim()}
               >
-                {urlBusy ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.urlBtnText}>추출</Text>}
+                {urlBusy ? <ActivityIndicator color={colors.white} /> : <Text style={styles.urlBtnText}>추출</Text>}
               </TouchableOpacity>
             </View>
           </View>
 
           {loading ? (
-            <ActivityIndicator size="large" color="#6366F1" style={{ marginTop: 30 }} />
+            <ActivityIndicator size="large" color={colors.accent} style={{ marginTop: 30 }} />
           ) : drafts.length === 0 ? (
             <Text style={styles.empty}>대기 중인 Draft가 없습니다. 위 버튼으로 수집하거나 URL을 붙여넣어 추가하세요.</Text>
           ) : (
@@ -326,10 +327,10 @@ const AdminScreen = ({ navigation }) => {
       ) : tab === 'pending' ? (
         <ScrollView
           contentContainerStyle={{ padding: 16, paddingBottom: 60 }}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchPending(); }} colors={['#6366F1']} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchPending(); }} colors={[colors.accent]} tintColor={colors.accent} />}
         >
           {loading ? (
-            <ActivityIndicator size="large" color="#6366F1" style={{ marginTop: 30 }} />
+            <ActivityIndicator size="large" color={colors.accent} style={{ marginTop: 30 }} />
           ) : submissions.length === 0 ? (
             <Text style={styles.empty}>대기 중인 제보가 없습니다.</Text>
           ) : (
@@ -374,96 +375,96 @@ const CFormField = ({ label, value, onChange, multiline, ...rest }) => (
       value={value}
       onChangeText={onChange}
       multiline={multiline}
-      placeholderTextColor="#94A3B8"
+      placeholderTextColor={colors.textMuted}
       {...rest}
     />
   </View>
 );
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8FAFC' },
+  container: { flex: 1, backgroundColor: colors.bg },
   headerBar: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 16, paddingTop: 50, paddingBottom: 12,
-    borderBottomWidth: 1, borderBottomColor: '#E2E8F0', backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1, borderBottomColor: colors.hairline, backgroundColor: colors.bgElevated,
   },
   closeBtn: {
-    width: 32, height: 32, borderRadius: 16, backgroundColor: '#F1F5F9',
+    width: 32, height: 32, borderRadius: radius.lg, backgroundColor: colors.surfaceAlt,
     justifyContent: 'center', alignItems: 'center',
   },
-  closeBtnText: { color: '#0F172A', fontWeight: '700' },
-  headerTitle: { fontSize: 17, fontWeight: '800', color: '#0F172A' },
-  tabs: { flexDirection: 'row', backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
+  closeBtnText: { color: colors.textPrimary, fontWeight: '700' },
+  headerTitle: { fontSize: 17, fontWeight: '800', color: colors.textPrimary },
+  tabs: { flexDirection: 'row', backgroundColor: colors.bgElevated, borderBottomWidth: 1, borderBottomColor: colors.hairline },
   tab: { flex: 1, paddingVertical: 14, alignItems: 'center' },
-  tabActive: { borderBottomWidth: 2, borderBottomColor: '#6366F1' },
-  tabText: { fontSize: 13, fontWeight: '600', color: '#64748B' },
-  tabTextActive: { color: '#6366F1' },
-  empty: { textAlign: 'center', color: '#94A3B8', marginTop: 60, fontSize: 14, paddingHorizontal: 24 },
+  tabActive: { borderBottomWidth: 2, borderBottomColor: colors.accent },
+  tabText: { fontSize: 13, fontWeight: '600', color: colors.textSecondary },
+  tabTextActive: { color: colors.accentBright },
+  empty: { textAlign: 'center', color: colors.textMuted, marginTop: 60, fontSize: 14, paddingHorizontal: 24 },
 
   actionPanel: {
-    backgroundColor: '#FFFFFF', borderRadius: 12, padding: 14, marginBottom: 16,
-    borderWidth: 1, borderColor: '#E2E8F0',
+    backgroundColor: colors.surface, borderRadius: radius.md, padding: 14, marginBottom: 16,
+    borderWidth: 1, borderColor: colors.hairline,
   },
   collectBtn: {
-    height: 46, borderRadius: 10, backgroundColor: '#6366F1',
+    height: 46, borderRadius: radius.sm, backgroundColor: colors.accent,
     justifyContent: 'center', alignItems: 'center',
   },
-  collectBtnText: { color: '#FFFFFF', fontWeight: '800', fontSize: 15 },
-  actionHint: { fontSize: 12, color: '#64748B', marginTop: 6, textAlign: 'center' },
+  collectBtnText: { color: colors.white, fontWeight: '800', fontSize: 15 },
+  actionHint: { fontSize: 12, color: colors.textSecondary, marginTop: 6, textAlign: 'center' },
   urlRow: { flexDirection: 'row', marginTop: 14, gap: 8 },
   urlInput: {
-    flex: 1, backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0',
-    borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: '#0F172A',
+    flex: 1, backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.hairline,
+    borderRadius: radius.sm, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: colors.textPrimary,
   },
   urlBtn: {
-    width: 80, height: 44, borderRadius: 10, backgroundColor: '#10B981',
+    width: 80, height: 44, borderRadius: radius.sm, backgroundColor: colors.success,
     justifyContent: 'center', alignItems: 'center',
   },
-  urlBtnText: { color: '#FFFFFF', fontWeight: '800', fontSize: 14 },
+  urlBtnText: { color: colors.white, fontWeight: '800', fontSize: 14 },
   btnDisabled: { opacity: 0.5 },
 
   card: {
-    backgroundColor: '#FFFFFF', borderRadius: 12, padding: 16, marginBottom: 12,
-    borderWidth: 1, borderColor: '#E2E8F0',
+    backgroundColor: colors.surface, borderRadius: radius.md, padding: 16, marginBottom: 12,
+    borderWidth: 1, borderColor: colors.hairline,
   },
   draftHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 },
-  scoreChip: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, marginLeft: 8 },
-  scoreChipText: { color: '#FFFFFF', fontSize: 12, fontWeight: '800' },
-  cardTitle: { flex: 1, fontSize: 16, fontWeight: '800', color: '#0F172A' },
-  cardMeta: { fontSize: 12, color: '#94A3B8', marginBottom: 8 },
-  cardDesc: { fontSize: 14, color: '#334155', lineHeight: 20, marginBottom: 8 },
-  cardField: { fontSize: 12, color: '#475569', marginTop: 2 },
-  tasksBox: { backgroundColor: '#F8FAFC', borderRadius: 8, padding: 10, marginTop: 8, marginBottom: 8 },
-  tasksTitle: { fontSize: 12, fontWeight: '800', color: '#475569', marginBottom: 6 },
-  taskItem: { fontSize: 13, color: '#0F172A', lineHeight: 20, marginBottom: 2 },
-  scamBanner: { backgroundColor: '#FEF2F2', borderRadius: 8, padding: 8, marginBottom: 8 },
-  scamBannerText: { color: '#B91C1C', fontWeight: '800', fontSize: 12 },
+  scoreChip: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: radius.sm, marginLeft: 8 },
+  scoreChipText: { color: colors.white, fontSize: 12, fontWeight: '800' },
+  cardTitle: { flex: 1, fontSize: 16, fontWeight: '800', color: colors.textPrimary },
+  cardMeta: { fontSize: 12, color: colors.textMuted, marginBottom: 8 },
+  cardDesc: { fontSize: 14, color: colors.textSecondary, lineHeight: 20, marginBottom: 8 },
+  cardField: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
+  tasksBox: { backgroundColor: colors.surfaceAlt, borderRadius: radius.sm, padding: 10, marginTop: 8, marginBottom: 8 },
+  tasksTitle: { fontSize: 12, fontWeight: '800', color: colors.textSecondary, marginBottom: 6 },
+  taskItem: { fontSize: 13, color: colors.textPrimary, lineHeight: 20, marginBottom: 2 },
+  scamBanner: { backgroundColor: colors.dangerSoft, borderRadius: radius.sm, padding: 8, marginBottom: 8 },
+  scamBannerText: { color: colors.danger, fontWeight: '800', fontSize: 12 },
 
   btnRow: { flexDirection: 'row', marginTop: 12, gap: 8 },
-  btn: { flex: 1, height: 40, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
-  approve: { backgroundColor: '#10B981' },
-  reject: { backgroundColor: '#EF4444' },
-  btnText: { color: '#FFFFFF', fontWeight: '800' },
+  btn: { flex: 1, height: 40, borderRadius: radius.sm, justifyContent: 'center', alignItems: 'center' },
+  approve: { backgroundColor: colors.success },
+  reject: { backgroundColor: colors.danger },
+  btnText: { color: colors.white, fontWeight: '800' },
 
   field: { marginBottom: 12 },
-  fieldLabel: { fontSize: 13, fontWeight: '700', color: '#334155', marginBottom: 6 },
+  fieldLabel: { fontSize: 13, fontWeight: '700', color: colors.textSecondary, marginBottom: 6 },
   input: {
-    backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0',
-    borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: '#0F172A',
+    backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.hairline,
+    borderRadius: radius.sm, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: colors.textPrimary,
   },
   checkRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
   checkbox: {
-    width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: '#94A3B8',
+    width: 22, height: 22, borderRadius: radius.sm, borderWidth: 2, borderColor: colors.hairlineStrong,
     marginRight: 10, justifyContent: 'center', alignItems: 'center',
   },
-  checkboxOn: { backgroundColor: '#6366F1', borderColor: '#6366F1' },
-  checkmark: { color: '#FFFFFF', fontWeight: '900' },
-  checkLabel: { fontSize: 14, color: '#0F172A' },
+  checkboxOn: { backgroundColor: colors.accent, borderColor: colors.accent },
+  checkmark: { color: colors.white, fontWeight: '900' },
+  checkLabel: { fontSize: 14, color: colors.textPrimary },
   createBtn: {
-    height: 52, borderRadius: 14, backgroundColor: '#6366F1',
+    height: 52, borderRadius: radius.lg, backgroundColor: colors.accent,
     justifyContent: 'center', alignItems: 'center', marginTop: 8,
   },
-  createBtnText: { color: '#FFFFFF', fontWeight: '800', fontSize: 16 },
+  createBtnText: { color: colors.white, fontWeight: '800', fontSize: 16 },
 });
 
 export default AdminScreen;

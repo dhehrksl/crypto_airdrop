@@ -1,6 +1,7 @@
 import React, { useState, useContext } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { AuthContext } from '../context/AuthContext';
+import { colors, radius } from '../constants/theme';
 
 const LoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
@@ -30,10 +31,11 @@ const LoginScreen = ({ navigation }) => {
     <View style={styles.container}>
       <Text style={styles.title}>Welcome Back</Text>
       <Text style={styles.subtitle}>Log in to your account</Text>
-      
+
       <TextInput
         style={styles.input}
         placeholder="Email"
+        placeholderTextColor={colors.textMuted}
         value={email}
         onChangeText={setEmail}
         keyboardType="email-address"
@@ -42,6 +44,7 @@ const LoginScreen = ({ navigation }) => {
       <TextInput
         style={styles.input}
         placeholder="Password"
+        placeholderTextColor={colors.textMuted}
         value={password}
         onChangeText={setPassword}
         secureTextEntry
@@ -64,7 +67,7 @@ const LoginScreen = ({ navigation }) => {
           <Text style={styles.googleButtonText}>Sign in with Google</Text>
         )}
       </TouchableOpacity>
-      
+
       <View style={styles.footer}>
         <Text style={styles.footerText}>Don't have an account?</Text>
         <TouchableOpacity onPress={() => navigation.navigate('Register')} disabled={isLoading}>
@@ -80,59 +83,62 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     paddingHorizontal: 30,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.bg,
   },
   title: {
     fontSize: 32,
     fontWeight: '800',
-    color: '#1E293B',
+    color: colors.textPrimary,
     textAlign: 'center',
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
-    color: '#64748B',
+    color: colors.textSecondary,
     textAlign: 'center',
     marginBottom: 40,
   },
   input: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surfaceAlt,
+    color: colors.textPrimary,
     paddingHorizontal: 20,
-    height: 50,
-    borderRadius: 10,
+    height: 52,
+    borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.hairline,
     fontSize: 16,
     marginBottom: 16,
   },
   errorText: {
-    color: '#EF4444',
+    color: colors.danger,
     textAlign: 'center',
     marginBottom: 10,
   },
   button: {
-    backgroundColor: '#6366F1',
-    height: 50,
-    borderRadius: 10,
+    backgroundColor: colors.accent,
+    height: 52,
+    borderRadius: radius.md,
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 10,
   },
   buttonText: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontSize: 18,
     fontWeight: '700',
   },
   googleButton: {
-    backgroundColor: '#DB4437', // Google Red
-    height: 50,
-    borderRadius: 10,
+    backgroundColor: colors.surfaceAlt,
+    height: 52,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.hairline,
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 10,
   },
   googleButtonText: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontSize: 18,
     fontWeight: '700',
   },
@@ -143,11 +149,11 @@ const styles = StyleSheet.create({
   },
   footerText: {
     fontSize: 14,
-    color: '#64748B',
+    color: colors.textSecondary,
   },
   link: {
     fontSize: 14,
-    color: '#6366F1',
+    color: colors.accent,
     fontWeight: '700',
     marginLeft: 5,
   },

@@ -4,16 +4,24 @@ import BannerAdComponent from '../components/BannerAdComponent';
 import { AuthContext } from '../context/AuthContext';
 import { markAsParticipated, unmarkAsParticipated, getMarketPrice } from '../services/api';
 import { DISCLAIMER_SHORT } from '../constants/policies';
+import { colors, radius, getTrendLabel } from '../constants/theme';
+import useAirdropTracking from '../hooks/useAirdropTracking';
 
 const DetailScreen = ({ route, navigation }) => {
   const { airdrop: initialAirdrop } = route.params;
   const { userInfo } = useContext(AuthContext);
-  
+
   const [airdrop, setAirdrop] = useState(initialAirdrop);
   const [expanded, setExpanded] = useState(false);
   const [isParticipated, setIsParticipated] = useState(false);
   const [priceData, setPriceData] = useState(null);
   const [priceLoading, setPriceLoading] = useState(false);
+
+  // 관심 목록 + 단계별 진행 추적 (로그인 사용자만)
+  const { watchlisted, completedTasks, toggleWatchlist, toggleTask } = useAirdropTracking(
+    airdrop._id,
+    !!userInfo
+  );
 
   useEffect(() => {
     if (userInfo && airdrop.participatedBy) {
@@ -23,19 +31,16 @@ const DetailScreen = ({ route, navigation }) => {
 
   useEffect(() => {
     const fetchPrice = async () => {
-      const ticker = airdrop.tokenTicker || (airdrop.projectName ? airdrop.projectName.toLowerCase().replace(/\s+/g, '-') : null);
+      const ticker =
+        airdrop.tokenTicker ||
+        (airdrop.projectName ? airdrop.projectName.toLowerCase().replace(/\s+/g, '-') : null);
       if (!ticker) return;
       setPriceLoading(true);
       try {
         const response = await getMarketPrice(ticker);
-        // 백엔드가 ticker→coin id 매핑 실패 시 { unsupported: true } 반환 — 정상 시나리오로 처리
-        if (response.data && !response.data.unsupported) {
-          setPriceData(response.data);
-        } else {
-          setPriceData(null);
-        }
+        if (response.data && !response.data.unsupported) setPriceData(response.data);
+        else setPriceData(null);
       } catch (error) {
-        // 404/502 등 실제 에러도 사용자에게 노출하지 않음 (가격은 부가 정보)
         setPriceData(null);
       } finally {
         setPriceLoading(false);
@@ -46,10 +51,9 @@ const DetailScreen = ({ route, navigation }) => {
 
   const handleToggleParticipation = async () => {
     if (!userInfo) {
-      Alert.alert("로그인 필요", "이 기능을 사용하려면 로그인이 필요합니다.");
+      Alert.alert('로그인 필요', '이 기능을 사용하려면 로그인이 필요합니다.');
       return;
     }
-
     try {
       let updatedAirdrop;
       if (isParticipated) {
@@ -62,25 +66,25 @@ const DetailScreen = ({ route, navigation }) => {
       setAirdrop(updatedAirdrop);
       setIsParticipated(updatedAirdrop.participatedBy.includes(userInfo.id));
     } catch (error) {
-      console.error("Failed to update participation status:", error);
-      Alert.alert("오류", "참여 상태를 업데이트하는 데 실패했습니다.");
+      Alert.alert('오류', '참여 상태를 업데이트하는 데 실패했습니다.');
     }
   };
 
   const handleOpenWebView = () => {
     if (airdrop.official_link) {
       Alert.alert(
-        "외부 사이트 이동",
-        "정보 확인을 위해 외부 사이트로 이동합니다. 에어드랍 참여 시 절대로 개인키나 시드 구문을 공유하지 마십시오. 사기 및 해킹에 주의하시기 바랍니다.",
+        '외부 사이트 이동',
+        '정보 확인을 위해 외부 사이트로 이동합니다. 에어드랍 참여 시 절대로 개인키나 시드 구문을 공유하지 마십시오. 사기 및 해킹에 주의하시기 바랍니다.',
         [
-          { text: "취소", style: "cancel" },
-          { 
-            text: "이동", 
-            onPress: () => navigation.navigate('WebView', {
-              url: airdrop.official_link,
-              title: airdrop.title || airdrop.projectName
-            }) 
-          }
+          { text: '취소', style: 'cancel' },
+          {
+            text: '이동',
+            onPress: () =>
+              navigation.navigate('WebView', {
+                url: airdrop.official_link,
+                title: airdrop.title || airdrop.projectName,
+              }),
+          },
         ]
       );
     } else {
@@ -88,62 +92,69 @@ const DetailScreen = ({ route, navigation }) => {
     }
   };
 
-  const getScoreColor = (score) => {
-    if (score >= 90) return '#10B981'; // Green (Active)
-    if (score >= 80) return '#F59E0B'; // Orange (Trending)
-    return '#94A3B8'; // Neutral Gray
-  };
-
-  const endDate = airdrop.end_date 
-    ? new Date(airdrop.end_date).toLocaleString('ko-KR', { 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric', 
-        hour: '2-digit', 
-        minute: '2-digit', 
-        hour12: false // 24시간 형식
-      }) 
+  const endDate = airdrop.end_date
+    ? new Date(airdrop.end_date).toLocaleString('ko-KR', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      })
     : '미정';
-  const isClosingSoon = airdrop.end_date && new Date(airdrop.end_date) < new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
+  const isClosingSoon =
+    airdrop.end_date && new Date(airdrop.end_date) < new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
 
   const description = airdrop.description || '상세 정보가 없습니다.';
   const isLongDescription = description.length > 100;
-  
   const title = airdrop.projectName || airdrop.title || '제목 없음';
+  const trend = getTrendLabel(airdrop.trend_score);
+
+  const tasksArr = Array.isArray(airdrop.tasks) ? airdrop.tasks : [];
+  const hasTasks = tasksArr.length > 0;
 
   return (
     <View style={styles.mainContainer}>
       <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
         <View style={styles.heroSection}>
-          <TouchableOpacity
-            style={styles.closeButton}
-            onPress={() => navigation.goBack()}
-          >
-            <Text style={styles.closeButtonText}>✕</Text>
-          </TouchableOpacity>
-          {airdrop.is_airdrop ? (
-            <View style={[styles.scoreCircle, { borderColor: getScoreColor(airdrop.trend_score) }]}>
-              <Text style={[styles.scoreValue, { color: getScoreColor(airdrop.trend_score) }]}>{airdrop.trend_score || 0}</Text>
-              <Text style={styles.scoreLabel}>트렌드 지수</Text>
-            </View>
-          ) : (
-            <View style={[styles.scoreCircle, styles.newsBadge]}>
-              <Text style={styles.newsBadgeText}>NEWS</Text>
-            </View>
-          )}
+          <View style={styles.heroTopRow}>
+            <TouchableOpacity style={styles.iconButton} onPress={() => navigation.goBack()}>
+              <Text style={styles.iconButtonText}>✕</Text>
+            </TouchableOpacity>
+            {userInfo && (
+              <TouchableOpacity
+                style={[styles.watchButton, watchlisted && styles.watchButtonActive]}
+                onPress={toggleWatchlist}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.watchButtonText, watchlisted && styles.watchButtonTextActive]}>
+                  {watchlisted ? '★ 관심' : '☆ 관심'}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          <View style={[styles.trendChip, { backgroundColor: trend.soft }]}>
+            <Text style={[styles.trendChipText, { color: trend.color }]}>{trend.text}</Text>
+          </View>
+
           <Text style={styles.title}>{title}</Text>
-          
+
           {(airdrop.tokenTicker || airdrop.projectName) && (
             <View style={styles.priceContainer}>
               {priceLoading ? (
-                <ActivityIndicator size="small" color="#64748B" />
+                <ActivityIndicator size="small" color={colors.textMuted} />
               ) : priceData && priceData.usd ? (
                 <>
                   <Text style={styles.priceValue}>${priceData.usd.toLocaleString()}</Text>
-                  <Text style={[
-                    styles.priceChange,
-                    priceData.usd_24h_change >= 0 ? styles.priceChangePositive : styles.priceChangeNegative
-                  ]}>
+                  <Text
+                    style={[
+                      styles.priceChange,
+                      priceData.usd_24h_change >= 0
+                        ? styles.priceChangePositive
+                        : styles.priceChangeNegative,
+                    ]}
+                  >
                     {priceData.usd_24h_change?.toFixed(2)}% (24h)
                   </Text>
                 </>
@@ -156,258 +167,306 @@ const DetailScreen = ({ route, navigation }) => {
           <View style={styles.badgeRow}>
             {airdrop.is_confirmed && (
               <View style={[styles.sourceBadge, styles.confirmedBadge]}>
-                <Text style={[styles.sourceBadgeText, styles.confirmedBadgeText]}>✔ 공식 확정</Text>
+                <Text style={[styles.sourceBadgeText, { color: colors.cyan }]}>✔ 공식 확정</Text>
               </View>
             )}
-            {Array.isArray(airdrop.source) && airdrop.source.map((s, i) => (
-              <View key={i} style={styles.sourceBadge}>
-                <Text style={styles.sourceBadgeText}>{s}</Text>
-              </View>
-            ))}
+            {Array.isArray(airdrop.source) &&
+              airdrop.source.map((s, i) => (
+                <View key={i} style={styles.sourceBadge}>
+                  <Text style={styles.sourceBadgeText}>{s}</Text>
+                </View>
+              ))}
           </View>
         </View>
 
         <View style={styles.contentCard}>
           {airdrop.end_date && (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>🗓️ 주요 일정</Text>
+              <Text style={styles.sectionTitle}>🗓️  주요 일정</Text>
               <View style={[styles.infoCard, isClosingSoon && styles.closingSoonInfoCard]}>
                 <Text style={styles.infoCardLabel}>마감일</Text>
-                <Text style={[styles.infoCardValue, isClosingSoon && { color: '#C2410C' }]}>
+                <Text style={[styles.infoCardValue, isClosingSoon && { color: colors.warning }]}>
                   {endDate}
-                  {isClosingSoon && " (🔥 마감 임박)"}
+                  {isClosingSoon && '  (🔥 마감 임박)'}
                 </Text>
               </View>
             </View>
           )}
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>{airdrop.is_airdrop ? '📋 참여 방법' : '📝 뉴스 요약'}</Text>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionTitle}>📋  참여 방법</Text>
+              {hasTasks && userInfo && (
+                <Text style={styles.progressText}>
+                  {completedTasks.length}/{tasksArr.length} 완료
+                </Text>
+              )}
+            </View>
             <View style={styles.descriptionBox}>
-              <Text 
-                style={styles.description}
-                numberOfLines={expanded ? undefined : 4}
-              >
-                {airdrop.is_airdrop && airdrop.tasks && airdrop.tasks.length > 0
-                  ? airdrop.tasks.join('\n\n')
-                  : description}
-              </Text>
-              {isLongDescription && (
-                <TouchableOpacity 
-                  onPress={() => setExpanded(!expanded)}
-                  style={styles.expandButton}
-                >
-                  <Text style={styles.expandButtonText}>
-                    {expanded ? '간략히 보기' : '... 더보기'}
+              {hasTasks ? (
+                <>
+                  {tasksArr.map((t, i) => {
+                    const done = completedTasks.includes(i);
+                    return (
+                      <TouchableOpacity
+                        key={i}
+                        style={[styles.taskRow, i === tasksArr.length - 1 && styles.taskRowLast]}
+                        onPress={() => toggleTask(i)}
+                        disabled={!userInfo}
+                        activeOpacity={0.7}
+                      >
+                        <View style={[styles.checkbox, done && styles.checkboxDone]}>
+                          {done && <Text style={styles.checkmark}>✓</Text>}
+                        </View>
+                        <Text style={[styles.taskText, done && styles.taskTextDone]}>{t}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                  {!userInfo && (
+                    <Text style={styles.loginHint}>
+                      로그인하면 단계별로 진행 상황을 체크할 수 있습니다.
+                    </Text>
+                  )}
+                </>
+              ) : (
+                <>
+                  <Text style={styles.description} numberOfLines={expanded ? undefined : 4}>
+                    {description}
                   </Text>
-                </TouchableOpacity>
+                  {isLongDescription && (
+                    <TouchableOpacity onPress={() => setExpanded(!expanded)} style={styles.expandButton}>
+                      <Text style={styles.expandButtonText}>
+                        {expanded ? '간략히 보기' : '... 더보기'}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </>
               )}
             </View>
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>🔗 공식 링크</Text>
-            <TouchableOpacity
-              style={styles.linkCard}
-              onPress={handleOpenWebView}
-            >
-              <Text style={styles.linkUrl} numberOfLines={1}>{airdrop.official_link || airdrop.guideUrl}</Text>
-              <Text style={styles.linkHint}>탭하여 열기</Text>
+            <Text style={styles.sectionTitle}>🔗  공식 링크</Text>
+            <TouchableOpacity style={styles.linkCard} onPress={handleOpenWebView} activeOpacity={0.8}>
+              <Text style={styles.linkUrl} numberOfLines={1}>
+                {airdrop.official_link || '링크 없음'}
+              </Text>
+              <Text style={styles.linkHint}>탭하여 열기 ›</Text>
             </TouchableOpacity>
           </View>
 
           <View style={styles.disclaimerBox}>
-            <Text style={styles.disclaimerText}>⚠ {DISCLAIMER_SHORT}</Text>
+            <Text style={styles.disclaimerText}>⚠  {DISCLAIMER_SHORT}</Text>
           </View>
         </View>
       </ScrollView>
 
       <BannerAdComponent />
 
-      {airdrop.is_airdrop ? (
-        <View style={styles.bottomBar}>
-          <TouchableOpacity
-            style={[styles.participationButton, isParticipated && styles.participatedButton]}
-            onPress={handleToggleParticipation}
-          >
-            <Text style={[styles.participationButtonText, isParticipated && styles.participatedButtonText]}>
-              {isParticipated ? '✔ 참여 완료' : '참여 완료로 표시'}
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.mainButton}
-            onPress={handleOpenWebView}
-          >
-            <Text style={styles.mainButtonText}>참여하러 가기</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <View style={styles.bottomBar}>
-          <TouchableOpacity
-            style={[styles.mainButton, styles.fullWidthButton]}
-            onPress={handleOpenWebView}
-          >
-            <Text style={styles.mainButtonText}>원문 보기</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+      <View style={styles.bottomBar}>
+        <TouchableOpacity
+          style={[styles.participationButton, isParticipated && styles.participatedButton]}
+          onPress={handleToggleParticipation}
+          activeOpacity={0.85}
+        >
+          <Text style={[styles.participationButtonText, isParticipated && styles.participatedButtonText]}>
+            {isParticipated ? '✔ 참여 완료' : '참여 완료로 표시'}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.mainButton} onPress={handleOpenWebView} activeOpacity={0.85}>
+          <Text style={styles.mainButtonText}>참여하러 가기</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  mainContainer: { flex: 1, backgroundColor: '#F8FAFC' },
+  mainContainer: { flex: 1, backgroundColor: colors.bg },
   container: { flex: 1 },
-  scrollContent: { paddingBottom: 120 },
+  scrollContent: { paddingBottom: 130 },
   heroSection: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.bgElevated,
     alignItems: 'center',
-    paddingVertical: 40,
+    paddingTop: 56,
+    paddingBottom: 32,
     paddingHorizontal: 20,
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.05,
-    shadowRadius: 12,
-    elevation: 5,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.hairline,
   },
-  closeButton: {
+  heroTopRow: {
     position: 'absolute',
-    top: 20,
-    left: 20,
-    backgroundColor: 'rgba(0,0,0,0.1)',
-    borderRadius: 15,
-    width: 30,
-    height: 30,
-    justifyContent: 'center',
-    alignItems: 'center',
+    top: 52,
+    left: 16,
+    right: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     zIndex: 10,
   },
-  closeButtonText: { color: '#FFFFFF', fontWeight: 'bold', fontSize: 16 },
-  scoreCircle: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    borderWidth: 6,
+  iconButton: {
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: 16,
+    width: 32,
+    height: 32,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 20,
-    backgroundColor: '#FFFFFF',
   },
-  scoreValue: { fontSize: 28, fontWeight: '900' },
-  scoreLabel: { fontSize: 10, color: '#94A3B8', fontWeight: '700', textTransform: 'uppercase' },
-  newsBadge: { borderColor: '#6366F1', backgroundColor: '#EEF2FF' },
-  newsBadgeText: { fontSize: 18, fontWeight: '900', color: '#4338CA', letterSpacing: 1 },
-  fullWidthButton: { flex: 1, marginLeft: 0 },
-  title: { fontSize: 24, fontWeight: '800', color: '#1E293B', textAlign: 'center', marginBottom: 8, lineHeight: 32 },
-  priceContainer: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    marginTop: 4,
+  iconButtonText: { color: colors.textSecondary, fontWeight: '800', fontSize: 14 },
+  watchButton: {
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: 16,
+    height: 32,
+    paddingHorizontal: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.hairline,
+  },
+  watchButtonActive: { backgroundColor: colors.accentSoft, borderColor: colors.accent },
+  watchButtonText: { color: colors.textSecondary, fontWeight: '700', fontSize: 13 },
+  watchButtonTextActive: { color: colors.accentBright },
+  trendChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: radius.pill,
+    marginTop: 28,
     marginBottom: 16,
   },
-  priceValue: { fontSize: 20, fontWeight: '700', color: '#1E293B', marginRight: 8 },
-  priceChange: { fontSize: 14, fontWeight: '600' },
-  priceChangePositive: { color: '#10B981' },
-  priceChangeNegative: { color: '#EF4444' },
-  noPriceText: { fontSize: 14, color: '#64748B' },
-  badgeRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center' },
+  trendChipText: { fontSize: 13, fontWeight: '800' },
+  title: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: colors.textPrimary,
+    textAlign: 'center',
+    lineHeight: 32,
+  },
+  priceContainer: { flexDirection: 'row', alignItems: 'baseline', marginTop: 10 },
+  priceValue: { fontSize: 20, fontWeight: '800', color: colors.textPrimary, marginRight: 8 },
+  priceChange: { fontSize: 14, fontWeight: '700' },
+  priceChangePositive: { color: colors.success },
+  priceChangeNegative: { color: colors.danger },
+  noPriceText: { fontSize: 14, color: colors.textMuted },
+  badgeRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', marginTop: 16 },
   sourceBadge: {
-    backgroundColor: '#F1F5F9',
+    backgroundColor: colors.surfaceAlt,
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 12,
+    borderRadius: radius.pill,
     margin: 4,
   },
-  sourceBadgeText: { fontSize: 12, color: '#64748B', fontWeight: '600' },
-  confirmedBadge: { backgroundColor: '#DCFCE7' },
-  confirmedBadgeText: { color: '#166534' },
-  contentCard: { padding: 20, marginTop: 10 },
-  section: { marginBottom: 32 },
-  sectionTitle: { fontSize: 18, fontWeight: '700', color: '#334155', marginBottom: 16 },
+  sourceBadgeText: { fontSize: 12, color: colors.textSecondary, fontWeight: '700' },
+  confirmedBadge: { backgroundColor: colors.cyanSoft },
+  contentCard: { padding: 20 },
+  section: { marginBottom: 28 },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  sectionTitle: { fontSize: 17, fontWeight: '800', color: colors.textPrimary },
+  progressText: { fontSize: 13, fontWeight: '800', color: colors.accentBright },
   infoCard: {
-    backgroundColor: '#FFFFFF',
-    padding: 20,
-    borderRadius: 16,
+    backgroundColor: colors.surface,
+    padding: 18,
+    borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: '#F1F5F9',
+    borderColor: colors.hairline,
   },
-  closingSoonInfoCard: { borderColor: '#F97316', backgroundColor: '#FFF7ED' },
-  infoCardLabel: { fontSize: 12, color: '#94A3B8', marginBottom: 4 },
-  infoCardValue: { fontSize: 16, fontWeight: '700', color: '#1E293B' },
+  closingSoonInfoCard: { borderColor: colors.warning, backgroundColor: '#1A1813' },
+  infoCardLabel: { fontSize: 12, color: colors.textMuted, marginBottom: 5, fontWeight: '600' },
+  infoCardValue: { fontSize: 15.5, fontWeight: '700', color: colors.textPrimary },
   descriptionBox: {
-    backgroundColor: '#FFFFFF',
-    padding: 20,
-    borderRadius: 20,
+    backgroundColor: colors.surface,
+    padding: 18,
+    borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: '#F1F5F9',
+    borderColor: colors.hairline,
   },
-  description: { fontSize: 16, lineHeight: 26, color: '#475569' },
-  expandButton: { marginTop: 8, alignSelf: 'flex-start' },
-  expandButtonText: { color: '#6366F1', fontWeight: '700', fontSize: 14 },
+  description: { fontSize: 15, lineHeight: 25, color: colors.textSecondary },
+  expandButton: { marginTop: 10, alignSelf: 'flex-start' },
+  expandButtonText: { color: colors.accentBright, fontWeight: '700', fontSize: 14 },
+  taskRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingVertical: 11,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.hairline,
+  },
+  taskRowLast: { borderBottomWidth: 0, paddingBottom: 2 },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 7,
+    borderWidth: 2,
+    borderColor: colors.hairlineStrong,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+    marginTop: 1,
+  },
+  checkboxDone: { backgroundColor: colors.accent, borderColor: colors.accent },
+  checkmark: { color: colors.white, fontSize: 13, fontWeight: '900' },
+  taskText: { flex: 1, fontSize: 14.5, lineHeight: 22, color: colors.textSecondary },
+  taskTextDone: { color: colors.textMuted, textDecorationLine: 'line-through' },
+  loginHint: { fontSize: 13, color: colors.textMuted, marginTop: 12, lineHeight: 18 },
   linkCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     padding: 16,
-    borderRadius: 16,
+    borderRadius: radius.lg,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.hairline,
   },
-  linkUrl: { fontSize: 14, color: '#6366F1', fontWeight: '600', flex: 1, marginRight: 10 },
-  linkHint: { fontSize: 12, color: '#94A3B8', fontWeight: '500' },
+  linkUrl: { fontSize: 13.5, color: colors.accentBright, fontWeight: '600', flex: 1, marginRight: 10 },
+  linkHint: { fontSize: 12, color: colors.textMuted, fontWeight: '600' },
+  disclaimerBox: {
+    backgroundColor: colors.warningSoft,
+    borderRadius: radius.md,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(244, 183, 61, 0.25)',
+  },
+  disclaimerText: { fontSize: 12, lineHeight: 18, color: colors.warning },
   bottomBar: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.bgElevated,
     paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 32,
+    paddingTop: 14,
+    paddingBottom: 30,
     borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
+    borderTopColor: colors.hairline,
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
   },
   participationButton: {
-    backgroundColor: '#E0E7FF',
-    height: 56,
-    borderRadius: 16,
+    backgroundColor: colors.surfaceAlt,
+    height: 54,
+    borderRadius: radius.md,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: 18,
+    borderWidth: 1,
+    borderColor: colors.hairline,
   },
-  participatedButton: { backgroundColor: '#166534' },
-  participationButtonText: { color: '#4338CA', fontSize: 16, fontWeight: '700' },
-  participatedButtonText: { color: '#FFFFFF' },
+  participatedButton: { backgroundColor: colors.successSoft, borderColor: colors.success },
+  participationButtonText: { color: colors.textSecondary, fontSize: 14, fontWeight: '700' },
+  participatedButtonText: { color: colors.success },
   mainButton: {
-    backgroundColor: '#6366F1',
-    height: 56,
-    borderRadius: 16,
+    backgroundColor: colors.accent,
+    height: 54,
+    borderRadius: radius.md,
     justifyContent: 'center',
     alignItems: 'center',
     flex: 1,
     marginLeft: 10,
-    shadowColor: '#6366F1',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.2,
-    shadowRadius: 16,
-    elevation: 8,
   },
-  mainButtonText: { color: '#FFFFFF', fontSize: 18, fontWeight: '700' },
-  disclaimerBox: {
-    backgroundColor: '#FEF3C7',
-    borderRadius: 12,
-    padding: 14,
-    marginTop: 8,
-    borderWidth: 1,
-    borderColor: '#FCD34D',
-  },
-  disclaimerText: { fontSize: 12, lineHeight: 18, color: '#78350F' },
+  mainButtonText: { color: colors.white, fontSize: 16, fontWeight: '800' },
 });
 
 export default DetailScreen;
