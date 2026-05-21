@@ -10,24 +10,23 @@
   - 자본시장법상 "투자 자문/투자권유" 해당 여부
   - 「표시·광고의 공정화에 관한 법률」 위반 위험 (AI 매칭도 표기)
 
-### 2. airdrops.io 데이터 사용 라이선스
-- [ ] airdrops.io 운영팀(contact 페이지 또는 이메일)에 다음 사항을 문의
-  - 한국어 앱에서 제목·카테고리·마감일·원문 링크를 표시 (자체 설명 텍스트는 표시 안 함)
-  - 사용자가 카드를 누르면 airdrops.io 원문 페이지로 이동
-  - 광고 수익 모델 (AdMob)
-- [ ] 가능하면 서면(이메일)으로 사용 허락 받기
-- [ ] 또는 동일 정보를 자체 수집·가공하는 방향으로 전환
+### 2. airdrops.io — 사용 중단 완료 (조치 불필요)
+- [x] airdrops.io 스크래퍼 및 자체 설명 텍스트 전면 제거 — 더 이상 어떤 출처로도 사용하지 않음 (ToS 상업적 사용 금지 조항 회피). 약관·처리방침 문서에서도 명시 삭제 완료.
 
-### 3. RSS 매체 라이선스 (선택)
-- [ ] CoinDesk, Cointelegraph 등 주요 매체의 RSS 라이선스 약관 재확인
-- [ ] 한국어 번역 + 헤드라인 + 원문 링크 형태가 fair use 범위인지 검토
-- [ ] 위험 회피하려면 출처별 약관 동의 또는 헤드라인+링크만 표시 모드 고려
+### 3. RSS 출처 라이선스 검토 (출시 전 권장)
+앱은 27개 RSS 출처를 수집한다. 출처 성격에 따라 위험도가 다르다.
+- **프로젝트 공식 채널** (Celestia·Ethereum·Sui·EigenLayer 블로그, 거버넌스 포럼, Snapshot): 발행자가 RSS로 명시 공개한 채널 — 헤드라인+링크 집계 위험 낮음
+- **상업 뉴스 매체** (CoinDesk·CoinTelegraph·Decrypt·The Block·BeInCrypto 등): 광고 수익 모델과 결합 시 라이선스 검토 필요
+- [x] AI 미검증(휴리스틱) 항목은 원문 발췌를 복제하지 않고 헤드라인 + 원문 링크 + 정형 안내 문구만 표시하도록 변경 완료 (news-legal-compliance)
+- [ ] 상업 매체의 RSS 이용약관을 출처별로 재확인 (헤드라인+링크 집계가 허용 범위인지)
+- [ ] 위험 회피가 필요하면 상업 매체를 줄이고 프로젝트 공식 채널 위주로 출처 목록 축소 검토
 
-### 4. 개인정보처리방침 호스팅
-- [ ] `docs/privacy-policy.md`의 `[출시 전 채워주세요]` 부분을 모두 채움 (사업자명, 이메일, 보호책임자 등)
+### 4. 개인정보처리방침 호스팅 ⚠️ 출시 블로커
+Play Console은 공개 URL의 개인정보처리방침을 필수로 요구한다. 아래가 완료되지 않으면 출시할 수 없다.
+- [ ] `docs/privacy-policy.md`·`docs/terms-of-service.md`의 `[변호사 검토 후 기입]` 항목(사업자 상호, 관할법원, 보호책임자 실명)을 변호사 검토 후 확정 — 시행일자·문의 이메일은 기입 완료
 - [ ] GitHub Pages / Notion / Vercel 등에 공개 URL로 호스팅
-- [ ] `frontend/src/constants/policies.js` 의 `PRIVACY_POLICY_URL`, `TERMS_URL`에 URL 기입
-- [ ] Play Console "앱 콘텐츠 > 개인정보처리방침" 에 URL 등록
+- [ ] **출시 블로커:** `frontend/src/constants/policies.js`의 `PRIVACY_POLICY_URL`, `TERMS_URL`이 현재 빈 문자열 — 호스팅 URL을 기입해야 함
+- [ ] **출시 블로커:** Play Console "앱 콘텐츠 > 개인정보처리방침"에 URL 등록
 
 ### 5. Play Console 설정
 - [ ] **데이터 보안(Data Safety)** 양식 입력 — `docs/data-safety.md` 참고
