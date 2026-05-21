@@ -1,5 +1,6 @@
 const Airdrop = require('../models/Airdrop');
 const User = require('../models/User');
+const AirdropTracking = require('../models/AirdropTracking');
 const logger = require('../src/lib/logger');
 
 // @desc    Mark an airdrop as participated by the user
@@ -58,8 +59,29 @@ const unmarkAsParticipated = async (req, res) => {
 const getParticipatedAirdrops = async (req, res) => {
   try {
     const userId = req.user.id;
-    const participated = await Airdrop.find({ participatedBy: userId }).sort({ created_at: -1 });
-    res.json({ data: participated });
+    const participated = await Airdrop.find({ participatedBy: userId })
+      .sort({ created_at: -1 })
+      .lean();
+
+    // 단계별 진행 상태를 함께 붙인다 (UserScreen 진행률 표시용)
+    const trackingDocs = await AirdropTracking.find({
+      user: userId,
+      airdrop: { $in: participated.map((a) => a._id) },
+    }).lean();
+    const byAirdrop = new Map();
+    for (const d of trackingDocs) byAirdrop.set(String(d.airdrop), d);
+
+    const data = participated.map((a) => {
+      const t = byAirdrop.get(String(a._id));
+      return {
+        ...a,
+        tracking: {
+          watchlisted: t?.watchlisted || false,
+          completedTasks: [...(t?.completedTasks || [])].sort((x, y) => x - y),
+        },
+      };
+    });
+    res.json({ data });
   } catch (error) {
     (req?.log || logger).error({ err: error }, 'getParticipatedAirdrops failed');
     res.status(500).send('Server Error');
