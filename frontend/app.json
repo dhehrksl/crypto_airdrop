@@ -45,7 +45,7 @@
     ],
     "extra": {
       "_comment_backend": "backendUrl을 명시하면 자동 감지를 덮어쓴다. 비워두면 Expo Go가 띄운 LAN IP를 자동 사용. 운영 빌드는 https://api.example.com 형태로 입력.",
-      "backendUrl": "",
+      "backendUrl": "http://192.168.55.143:3000",
       "backendPort": 3000,
       "google": {
         "expoClientId": "",
