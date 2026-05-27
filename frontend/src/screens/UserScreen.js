@@ -36,8 +36,8 @@ const UserScreen = ({ navigation }) => {
     loading,
     refreshing,
     onRefresh: refreshParticipated,
-  } = useMyAirdrops();
-  const { watchlist, onRefresh: refreshWatchlist } = useWatchlist();
+  } = useMyAirdrops(!!userInfo);
+  const { watchlist, onRefresh: refreshWatchlist } = useWatchlist(!!userInfo);
   const [deleting, setDeleting] = useState(false);
 
   const onRefresh = () => {

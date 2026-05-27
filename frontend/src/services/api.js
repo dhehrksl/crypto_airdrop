@@ -59,6 +59,24 @@ apiClient.interceptors.request.use(
   }
 );
 
+// 401 응답 자동 처리 — 만료/무효 토큰을 정리하고 AuthContext에 알린다.
+let unauthorizedHandler = null;
+export const setUnauthorizedHandler = (cb) => {
+  unauthorizedHandler = cb;
+};
+
+apiClient.interceptors.response.use(
+  (res) => res,
+  async (error) => {
+    if (error?.response?.status === 401) {
+      await AsyncStorage.removeItem('userToken');
+      await AsyncStorage.removeItem('userInfo');
+      if (unauthorizedHandler) unauthorizedHandler();
+    }
+    return Promise.reject(error);
+  }
+);
+
 
 export const getAirdrops = (sortType) => {
   return apiClient.get(`/api/airdrops?sort=${sortType}&type=airdrops`);

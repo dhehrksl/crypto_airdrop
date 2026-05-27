@@ -3,12 +3,18 @@ import { useFocusEffect } from '@react-navigation/native';
 import { getWatchlist as fetchWatchlistAPI } from '../services/api';
 
 // 내 관심 목록(워치리스트) 조회 훅. 화면 포커스마다 갱신.
-const useWatchlist = () => {
+const useWatchlist = (enabled = true) => {
   const [watchlist, setWatchlist] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(enabled);
   const [refreshing, setRefreshing] = useState(false);
 
   const fetchWatchlist = useCallback(async () => {
+    if (!enabled) {
+      setWatchlist([]);
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
     setLoading(true);
     try {
       const response = await fetchWatchlistAPI();
@@ -18,13 +24,15 @@ const useWatchlist = () => {
         setWatchlist([]);
       }
     } catch (error) {
-      console.error('Error fetching watchlist:', error);
+      if (error?.response?.status !== 401) {
+        console.error('Error fetching watchlist:', error);
+      }
       setWatchlist([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [enabled]);
 
   useFocusEffect(
     useCallback(() => {

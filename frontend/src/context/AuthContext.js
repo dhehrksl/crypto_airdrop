@@ -124,6 +124,15 @@ export const AuthProvider = ({ children }) => {
     isLoggedIn();
   }, []);
 
+  // 백엔드가 401을 반환하면(만료/무효 토큰) 자동으로 로그아웃 상태로 전환.
+  useEffect(() => {
+    api.setUnauthorizedHandler(() => {
+      setUserToken(null);
+      setUserInfo(null);
+    });
+    return () => api.setUnauthorizedHandler(null);
+  }, []);
+
   return (
     <AuthContext.Provider
       value={{

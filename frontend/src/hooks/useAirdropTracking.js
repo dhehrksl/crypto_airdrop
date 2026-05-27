@@ -30,7 +30,9 @@ const useAirdropTracking = (airdropId, enabled = true) => {
           setTotalTasks(res.data.totalTasks || 0);
         }
       } catch (error) {
-        console.error('Error fetching airdrop tracking:', error);
+        if (error?.response?.status !== 401) {
+          console.error('Error fetching airdrop tracking:', error);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
