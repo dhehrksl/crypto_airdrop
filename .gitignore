@@ -25,3 +25,6 @@ web-build/
 
 # DB 백업 — 마이그레이션 전 자체 JSON 백업
 backups/
+
+# 스크래퍼 preview 결과 (로컬 확인용 HTML)
+scraper-preview.html

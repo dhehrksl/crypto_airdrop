@@ -8,15 +8,20 @@
 //   3) 유효한 결과만 AirdropDraft에 upsert (unique_hash로 중복 방지)
 //   4) 관리자가 별도 화면에서 검토 후 Airdrop 컬렉션으로 승격
 
+const crypto = require('crypto');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const AirdropDraft = require('../../models/AirdropDraft');
+const Airdrop = require('../../models/Airdrop');
 const { isBlockedSource } = require('../config/blockedSources');
+const { isOfficialTelegramSource } = require('../config/officialTelegramChannels');
 const logger = require('../lib/logger');
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_MODEL = process.env.GEMINI_DRAFT_MODEL || process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite';
-const BATCH_SIZE = 8;
-const BATCH_DELAY_MS = 5000;
+// 호출 횟수 최소화 — 큰 batch + 긴 간격으로 quota 보존.
+// 분당 input token 한도(1M)에 안 닿도록 입력 길이도 절약(아래 buildPrompt).
+const BATCH_SIZE = 25;
+const BATCH_DELAY_MS = 15000;
 
 // 거래소 캠페인(선물/마진/레버리지 거래 요구) 차단 — 손실 위험이 크고 에어드랍이라기보다 거래소 마케팅에 가까움.
 // 영문/한글 키워드 모두 매치. category, tasks, description, title 어느 곳에 있어도 거름.
@@ -45,10 +50,12 @@ function getModel() {
 }
 
 function buildPrompt(batch) {
+  // 입력 토큰 절약 — content를 500자로 자름. 에어드랍 메타데이터(프로젝트명·단계·마감)는
+  // 대부분 첫 500자 내에 있으므로 정확도 손실 미미.
   const inputs = batch.map((item, idx) => ({
     idx,
     title: item.title || '',
-    content: (item.content || '').slice(0, 1500),
+    content: (item.content || '').slice(0, 500),
     source: item.sourceName || '',
     link: item.link || '',
   }));
@@ -138,6 +145,30 @@ function sanitizeUrl(url, fallback) {
   }
 }
 
+// 공식 TG 채널 draft를 즉시 Airdrop 컬렉션으로 publish.
+// adminDraftController.approveDraft와 동일한 페이로드 구조.
+async function publishDraftAsAirdrop(draft) {
+  const airdropDoc = {
+    title: draft.title,
+    description: draft.description,
+    official_link: draft.official_link,
+    tokenTicker: draft.tokenTicker,
+    tasks: Array.isArray(draft.tasks) && draft.tasks.length > 0 ? draft.tasks : undefined,
+    end_date: draft.end_date,
+    category: draft.category,
+    chain: Array.isArray(draft.chain) && draft.chain.length > 0 ? draft.chain : undefined,
+    trend_score: draft.trend_score || 70,
+    is_confirmed: true,
+    is_airdrop: true,
+    is_scam: false,
+    source: ['curated', draft.source_name].filter(Boolean),
+    unique_hash:
+      'auto-tg:' +
+      crypto.createHash('sha256').update(`${draft.title}|${draft.official_link}`).digest('hex').slice(0, 24),
+  };
+  return Airdrop.create(airdropDoc);
+}
+
 async function saveDraft(item, ai) {
   if (!ai || ai.is_airdrop !== true) return { skipped: true, reason: 'not_airdrop' };
   if (!Array.isArray(ai.tasks) || ai.tasks.length < 2) return { skipped: true, reason: 'no_tasks' };
@@ -157,6 +188,10 @@ async function saveDraft(item, ai) {
   const existing = await AirdropDraft.findOne({ unique_hash: item.id }).lean();
   if (existing) return { skipped: true, reason: 'duplicate', status: existing.status };
 
+  // 공식 TG 채널이면 자동 승인 + 즉시 Airdrop publish.
+  // is_scam_suspect 표시된 항목은 안전상 자동 publish 제외 (pending으로 떨어뜨림).
+  const isOfficial = isOfficialTelegramSource(item.sourceName) && !ai.is_scam_suspect;
+
   const payload = {
     title: String(ai.title || item.title).trim().slice(0, 300),
     description: String(ai.description || '').trim().slice(0, 4000),
@@ -172,14 +207,29 @@ async function saveDraft(item, ai) {
     source_url: item.link,
     source_excerpt: (item.content || '').slice(0, 1500),
     unique_hash: item.id,
-    status: 'pending',
+    status: isOfficial ? 'approved' : 'pending',
+    reviewNote: isOfficial ? 'auto-approved: official TG channel' : undefined,
+    reviewedAt: isOfficial ? new Date() : undefined,
   };
   if (ai.end_date) {
     const d = new Date(ai.end_date);
     if (!isNaN(d.getTime())) payload.end_date = d;
   }
 
-  await AirdropDraft.create(payload);
+  const draft = await AirdropDraft.create(payload);
+
+  if (isOfficial) {
+    try {
+      const airdrop = await publishDraftAsAirdrop(draft);
+      draft.publishedAirdrop = airdrop._id;
+      await draft.save();
+      return { skipped: false, autoPublished: true };
+    } catch (e) {
+      logger.error({ err: e, draftId: draft._id }, '[auto-publish] failed — left as approved draft');
+      return { skipped: false, autoPublished: false, error: e.message };
+    }
+  }
+
   return { skipped: false };
 }
 

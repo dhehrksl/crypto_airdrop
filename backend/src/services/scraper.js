@@ -18,52 +18,122 @@ const parser = new RSSParser({
   },
 });
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+// === 법무 정책 ===
+// 일반 뉴스 매체(CoinTelegraph, Decrypt, NewsBTC 등) RSS는 제거.
+// 이유: 광고 수익 앱이라 commercial reuse 회색지대 + 콘텐츠 저작권 위험.
+// 대신 1차 출처(프로젝트 공식 블로그, 거버넌스 포럼, 공식 Medium publication)만 수집.
+// Medium 태그 피드(일반 사용자 글)는 발견용으로 유지하되 화면에는 노출되지 않음(is_confirmed=false).
 const RSS_SOURCES = [
-  // === 일반 암호화폐 뉴스 (광범위 커버) ===
-  { name: 'CoinTelegraph', url: 'https://cointelegraph.com/rss/tag/airdrop' },
-  { name: 'CoinDesk', url: 'https://www.coindesk.com/arc/outboundfeeds/rss/' },
-  { name: 'Medium-Airdrop', url: 'https://medium.com/feed/tag/airdrop' },
-  { name: 'BeInCrypto', url: 'https://beincrypto.com/feed/' },
-  { name: 'NewsBTC', url: 'https://www.newsbtc.com/tag/airdrop/feed/' },
-  { name: 'TokenPost', url: 'https://tokenpost.com/rss' },
-  { name: 'Decrypt', url: 'https://decrypt.co/feed' },
-  { name: 'CryptoSlate', url: 'https://cryptoslate.com/feed/' },
-  { name: 'Blockworks', url: 'https://blockworks.co/feed/' },
-  { name: 'The Block', url: 'https://theblock.co/rss.xml' },
-  { name: 'Bitcoin.com News', url: 'https://news.bitcoin.com/feed' },
-  { name: 'U.Today', url: 'https://u.today/rss' },
-  { name: 'The Defiant', url: 'https://thedefiant.io/feed/' },
-  { name: 'CryptoPotato', url: 'https://cryptopotato.com/feed' },
-
-  // === Medium 태그 피드 (에어드랍 활성 분야 좁게) ===
-  { name: 'Medium-Restaking', url: 'https://medium.com/feed/tag/restaking' },
-  { name: 'Medium-EigenLayer', url: 'https://medium.com/feed/tag/eigenlayer' },
-  { name: 'Medium-ZKRollup', url: 'https://medium.com/feed/tag/zk-rollup' },
-  { name: 'Medium-Layer2', url: 'https://medium.com/feed/tag/layer-2' },
-  { name: 'Medium-DePIN', url: 'https://medium.com/feed/tag/depin' },
-  { name: 'Medium-Testnet', url: 'https://medium.com/feed/tag/testnet' },
-
-  // === 거버넌스 포럼 (Discourse 기본 RSS) ===
-  { name: 'Forum-Arbitrum', url: 'https://forum.arbitrum.foundation/latest.rss' },
-  { name: 'Forum-Optimism', url: 'https://gov.optimism.io/latest.rss' },
-  { name: 'Forum-Celestia', url: 'https://forum.celestia.org/latest.rss' },
-
-  // === 프로젝트 공식 블로그 ===
+  // === 프로젝트 공식 블로그 (자동 is_confirmed=true) ===
+  // RSS 살아있는 것만 유지. 죽은 것(Optimism Mirror, Cosmos, Injective, Jito, Jupiter, Aptos forum)은 제거.
   { name: 'Blog-Celestia', url: 'https://blog.celestia.org/rss/' },
   { name: 'Blog-Ethereum', url: 'https://blog.ethereum.org/feed.xml' },
   { name: 'Blog-Sui', url: 'https://blog.sui.io/rss/' },
   { name: 'Blog-EigenLayer', url: 'https://blog.eigenlayer.xyz/rss/' },
-  { name: 'Blog-Thirdweb', url: 'https://blog.thirdweb.com/rss/' },
+  { name: 'Blog-Uniswap', url: 'https://blog.uniswap.org/rss.xml' },
+  { name: 'Blog-Lido', url: 'https://blog.lido.fi/rss/' },
+  { name: 'Blog-Polygon', url: 'https://polygon.technology/blog-rss.xml' },
+  { name: 'Blog-zkSync', url: 'https://blog.zksync.io/rss/' },
+  { name: 'Blog-Scroll', url: 'https://scroll.io/blog/rss' },
+  { name: 'Blog-Berachain', url: 'https://blog.berachain.com/rss/' },
+  { name: 'Blog-Linea', url: 'https://linea.mirror.xyz/feed/atom' },
+  { name: 'Blog-Solana', url: 'https://solana.com/news/rss.xml' },
 
-  // === Medium 공식 publication ===
+  // === 거버넌스 포럼 (Discourse 표준 RSS) ===
+  { name: 'Forum-Arbitrum', url: 'https://forum.arbitrum.foundation/latest.rss' },
+  { name: 'Forum-Optimism', url: 'https://gov.optimism.io/latest.rss' },
+  { name: 'Forum-Celestia', url: 'https://forum.celestia.org/latest.rss' },
+  { name: 'Forum-Aave', url: 'https://governance.aave.com/latest.rss' },
+  { name: 'Forum-MakerDAO', url: 'https://forum.makerdao.com/latest.rss' },
+  { name: 'Forum-Compound', url: 'https://www.comp.xyz/latest.rss' },
+  { name: 'Forum-Polygon', url: 'https://forum.polygon.technology/latest.rss' },
+  { name: 'Forum-Uniswap', url: 'https://gov.uniswap.org/latest.rss' },
+  { name: 'Forum-Lido', url: 'https://research.lido.fi/latest.rss' },
+  { name: 'Forum-Berachain', url: 'https://forum.berachain.com/latest.rss' },
+
+  // === Medium 공식 publication (자동 is_confirmed=true) ===
   { name: 'Medium-StarkWare', url: 'https://medium.com/feed/@starkware' },
   { name: 'Medium-AaveProtocol', url: 'https://medium.com/feed/@aave' },
   { name: 'Medium-AptosLabs', url: 'https://aptoslabs.medium.com/feed' },
+  { name: 'Medium-TonCommunity', url: 'https://medium.com/feed/@toncommunity' },
+  { name: 'Medium-Polygon', url: 'https://medium.com/feed/@polygon_technology' },
+  { name: 'Medium-1inch', url: 'https://medium.com/feed/@1inch.io' },
+  { name: 'Medium-Pendle', url: 'https://medium.com/feed/@pendle_finance' },
+  { name: 'Medium-Cosmos', url: 'https://medium.com/feed/@cosmos' },
+
+  // === Medium 태그 피드 (발견용 — 화면 노출 X, AI 발견 트리거로만) ===
+  // 일반 사용자 글이라 is_confirmed=false 유지. 사용자 화면에는 노출 안 됨.
+  // 새 프로젝트/캠페인을 빠르게 발견하는 용도.
+  { name: 'Medium-TonBlockchain', url: 'https://medium.com/feed/tag/ton-blockchain' },
+  { name: 'Medium-MiniApps', url: 'https://medium.com/feed/tag/telegram-mini-apps' },
+  { name: 'Medium-Toncoin', url: 'https://medium.com/feed/tag/toncoin' },
+  { name: 'Medium-TapToEarn', url: 'https://medium.com/feed/tag/tap-to-earn' },
+  { name: 'Medium-Notcoin', url: 'https://medium.com/feed/tag/notcoin' },
+  { name: 'Medium-HamsterKombat', url: 'https://medium.com/feed/tag/hamster-kombat' },
+  { name: 'Medium-Catizen', url: 'https://medium.com/feed/tag/catizen' },
+  { name: 'Medium-Hyperliquid', url: 'https://medium.com/feed/tag/hyperliquid' },
+  { name: 'Medium-Berachain', url: 'https://medium.com/feed/tag/berachain' },
+  { name: 'Medium-Monad', url: 'https://medium.com/feed/tag/monad' },
+  { name: 'Medium-MonadLabs', url: 'https://medium.com/feed/tag/monad-labs' },
+  { name: 'Medium-MegaETH', url: 'https://medium.com/feed/tag/megaeth' },
+  { name: 'Medium-Movement', url: 'https://medium.com/feed/tag/movement-labs' },
 ];
+
+// === 공식 출처 화이트리스트 ===
+// 이 도메인에서 온 항목은 saveAiResult에서 is_confirmed=true로 강제 설정한다.
+// AI 분류와 별개로 도메인 기반의 신뢰 가능한 1차 출처임을 보장.
+const OFFICIAL_DOMAINS = [
+  // 프로젝트 자체 도메인
+  /^blog\.celestia\.org$/i, /^blog\.ethereum\.org$/i, /^blog\.sui\.io$/i,
+  /^blog\.eigenlayer\.xyz$/i, /^blog\.uniswap\.org$/i, /^blog\.lido\.fi$/i,
+  /^polygon\.technology$/i, /^blog\.zksync\.io$/i, /^scroll\.io$/i,
+  /^blog\.berachain\.com$/i, /^linea\.mirror\.xyz$/i, /^optimism\.mirror\.xyz$/i,
+  /^solana\.com$/i, /^blog\.cosmos\.network$/i, /^blog\.injective\.com$/i,
+  /^www\.jito\.network$/i, /^blog\.jup\.ag$/i,
+  // 거버넌스 포럼 (Discourse 인스턴스)
+  /^forum\.arbitrum\.foundation$/i, /^gov\.optimism\.io$/i, /^forum\.celestia\.org$/i,
+  /^governance\.aave\.com$/i, /^forum\.makerdao\.com$/i, /^www\.comp\.xyz$/i,
+  /^forum\.polygon\.technology$/i, /^gov\.uniswap\.org$/i, /^research\.lido\.fi$/i,
+  /^forum\.aptosfoundation\.org$/i, /^forum\.berachain\.com$/i,
+  // Snapshot DAO governance
+  /^snapshot\.org$/i, /^hub\.snapshot\.org$/i,
+];
+
+// Medium 공식 publication (medium.com/@xxx 또는 xxx.medium.com)
+const OFFICIAL_MEDIUM_HANDLES = new Set([
+  'starkware', 'aave', 'aptoslabs', 'toncommunity', 'theopennetwork',
+  'polygon_technology', 'polygon-technology', '1inch.io',
+  'pendle_finance', 'cosmos', 'avalancheavax', 'arbitrumfoundation',
+]);
+
+function isOfficialSource({ link, sourceName }) {
+  if (sourceName && sourceName.startsWith('Snapshot-')) return true;
+  if (!link) return false;
+  try {
+    const url = new URL(link);
+    const host = url.hostname.toLowerCase();
+    if (OFFICIAL_DOMAINS.some((re) => re.test(host))) return true;
+    if (host === 'medium.com') {
+      const m = url.pathname.match(/^\/@?([^/]+)/);
+      if (m && OFFICIAL_MEDIUM_HANDLES.has(m[1].toLowerCase().replace(/^@/, ''))) return true;
+    }
+    if (host.endsWith('.medium.com')) {
+      const sub = host.split('.')[0];
+      if (OFFICIAL_MEDIUM_HANDLES.has(sub.toLowerCase())) return true;
+    }
+    return false;
+  } catch (e) {
+    return false;
+  }
+}
 
 const POSITIVE_PATTERNS = [
   /airdrop/i, /claim/i, /snapshot/i, /eligib/i, /testnet/i, /mainnet/i,
-  /incentivized/i, /waitlist/i, /points/i, /reward/i, /quest/i, /whitelist/i
+  /incentivized/i, /waitlist/i, /points/i, /reward/i, /quest/i, /whitelist/i,
+  // 2024~2026 에어드랍 캠페인 키워드
+  /tap[\s-]?to[\s-]?earn/i, /mini[\s-]?app/i, /\bTMA\b/, /\bTGE\b/,
+  /season\s*\d/i, /pre[\s-]?market/i, /genesis\s+drop/i, /allocation/i,
 ];
 
 // NEGATIVE는 광고/잡음만 거른다.
@@ -77,7 +147,15 @@ const NEGATIVE_PATTERNS = [
 
 async function fetchRealData() {
   let allItems = [];
+  let lastMediumAt = 0;
   for (const source of RSS_SOURCES) {
+    // Medium은 IP/도메인 단위 rate limit이 강해 연속 요청 시 거부됨.
+    // medium.com 도메인은 직전 medium 요청과 800ms 이상 간격을 두고 호출.
+    if (source.url.includes('medium.com')) {
+      const elapsed = Date.now() - lastMediumAt;
+      if (elapsed < 800) await sleep(800 - elapsed);
+      lastMediumAt = Date.now();
+    }
     try {
       const feed = await parser.parseURL(source.url);
       const items = feed.items.slice(0, 15).map(item => ({
@@ -212,12 +290,16 @@ async function saveAiResult(item, aiResult) {
     return;
   }
 
+  const finalLink = aiResult.official_link || item.link;
+  // 화이트리스트 매칭: 공식 도메인 → AI 판단과 무관하게 is_confirmed=true 강제.
+  // 코드 기반 도메인 매칭이라 AI hallucination에 흔들리지 않는다.
+  const isOfficial = isOfficialSource({ link: finalLink, sourceName: item.sourceName });
   const updateData = {
     title: aiResult.title,
     description: aiResult.description,
-    official_link: aiResult.official_link || item.link,
+    official_link: finalLink,
     trend_score: aiResult.trend_score || 0,
-    is_confirmed: aiResult.is_confirmed || false,
+    is_confirmed: isOfficial ? true : (aiResult.is_confirmed || false),
     is_airdrop: true,
     is_scam: aiResult.is_scam,
     source: [item.sourceName],
@@ -282,6 +364,27 @@ Set is_airdrop=false for:
 - Speculation ("is an airdrop coming?", "could airdrop", rumors) with no announced campaign or participation steps.
 - Listicles, roundups, or historical recaps of past airdrops.
 - General project news, funding rounds, partnerships, or exchange listings with no participation campaign.
+
+=== TON ECOSYSTEM HINT ===
+Telegram Mini App campaigns (tap-to-earn, in-app quests with eligibility/claim phase) and TON-native
+airdrops qualify as is_airdrop=true when concrete user steps exist (join bot, complete tasks, hold/stake
+$TON, wallet connect). Treat $TON, Toncoin, "Mini App", "TMA", "tap-to-earn" as positive signals.
+
+=== is_confirmed 결정 기준 (CRITICAL) ===
+Set is_confirmed=true ONLY when the source link points to an OFFICIAL 1st-party source:
+- The project's own blog or website (e.g., blog.celestia.org, blog.berachain.com, polygon.technology)
+- An official DAO governance forum (Discourse: forum.xxx.org, gov.xxx.org, governance.xxx.com)
+- A Snapshot governance proposal (snapshot.org/...)
+- An official Medium publication owned by the project team (medium.com/@projectname or projectname.medium.com)
+
+Set is_confirmed=false for:
+- News media articles (CoinTelegraph, Decrypt, NewsBTC, etc.) — second-hand reports
+- Random user posts on Medium tag feeds (medium.com/feed/tag/xxx with no clear project ownership)
+- Aggregator/listing sites or affiliate content
+- Personal blogs not affiliated with the project
+
+When uncertain, default to is_confirmed=false. The backend will additionally force is_confirmed=true
+for whitelisted official domains, so under-classifying is safe.
 
 Input articles (JSON):
 ${JSON.stringify(inputs, null, 2)}
@@ -399,6 +502,10 @@ module.exports = {
   fetchRealData,
   evaluateNews,
   shouldDemoteAirdrop,
+  buildBatchPrompt,
+  parseBatchResponse,
+  model,
+  RSS_SOURCES,
   SKIP_THRESHOLD,
   AI_THRESHOLD,
   BATCH_SIZE,

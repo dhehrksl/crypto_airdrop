@@ -17,7 +17,8 @@ const getAirdrops = async (req, res) => {
       $and: [
         { $or: [{ is_airdrop: true }, { is_airdrop: { $exists: false } }] },
         { is_scam: false },
-        { trend_score: { $gte: 20 } },
+        { is_confirmed: true },
+        { trend_score: { $gte: 50 } },
         { $or: [
             { end_date: { $gte: new Date() } },
             { end_date: { $exists: false } },
