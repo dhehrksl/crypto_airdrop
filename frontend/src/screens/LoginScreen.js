@@ -7,8 +7,8 @@ const LoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState(''); // State to hold error message
-  const { login, googleLogin } = useContext(AuthContext);
+  const [error, setError] = useState('');
+  const { login } = useContext(AuthContext);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -16,7 +16,7 @@ const LoginScreen = ({ navigation }) => {
       return;
     }
     setIsLoading(true);
-    setError(''); // Clear previous errors
+    setError('');
     try {
       await login(email, password);
     } catch (err) {
@@ -57,14 +57,6 @@ const LoginScreen = ({ navigation }) => {
           <ActivityIndicator color="#FFFFFF" />
         ) : (
           <Text style={styles.buttonText}>Login</Text>
-        )}
-      </TouchableOpacity>
-
-      <TouchableOpacity style={styles.googleButton} onPress={googleLogin} disabled={isLoading}>
-        {isLoading ? ( // Use a separate isLoading for google if needed, or disable both
-          <ActivityIndicator color="#FFFFFF" />
-        ) : (
-          <Text style={styles.googleButtonText}>Sign in with Google</Text>
         )}
       </TouchableOpacity>
 
@@ -123,21 +115,6 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   buttonText: {
-    color: colors.white,
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  googleButton: {
-    backgroundColor: colors.surfaceAlt,
-    height: 52,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.hairline,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 10,
-  },
-  googleButtonText: {
     color: colors.white,
     fontSize: 18,
     fontWeight: '700',

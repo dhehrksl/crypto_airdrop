@@ -41,6 +41,19 @@ async function createAirdrop(endOffsetMs, overrides = {}) {
   });
 }
 
+// User 스키마가 email/password를 required로 강제 → 테스트 fixture가 매번 보내야 함.
+// 리마인더 로직은 username/push_token만 보므로 나머지는 더미값으로 채운다.
+let userCounter = 0;
+async function createTestUser(overrides = {}) {
+  const n = ++userCounter;
+  return User.create({
+    username: `remuser${n}`,
+    email: `remuser${n}@test.local`,
+    password: 'pw-test-12345',
+    ...overrides,
+  });
+}
+
 // 캡처용 가짜 푸시 발송기
 function makeSendPush() {
   const sent = [];
@@ -67,7 +80,7 @@ describe('runDeadlineReminders', () => {
   test('관심 등록한 사용자에게 D-1 리마인더 발송', async () => {
     const now = new Date();
     const airdrop = await createAirdrop(18 * HOUR); // D1 윈도우
-    const user = await User.create({
+    const user = await createTestUser({
       username: 'remuser1',
       push_token: 'ExponentPushToken[aaaaaaaaaaaaaaaaaaaaaa]',
     });
@@ -85,7 +98,7 @@ describe('runDeadlineReminders', () => {
   test('같은 마일스톤은 다음 실행에서 중복 발송하지 않는다', async () => {
     const now = new Date();
     const airdrop = await createAirdrop(18 * HOUR);
-    const user = await User.create({
+    const user = await createTestUser({
       username: 'remuser2',
       push_token: 'ExponentPushToken[bbbbbbbbbbbbbbbbbbbbbb]',
     });
@@ -102,7 +115,7 @@ describe('runDeadlineReminders', () => {
 
   test('참여(participatedBy) 중인 사용자도 리마인더 대상', async () => {
     const now = new Date();
-    const user = await User.create({
+    const user = await createTestUser({
       username: 'remuser3',
       push_token: 'ExponentPushToken[cccccccccccccccccccccc]',
     });
@@ -117,7 +130,7 @@ describe('runDeadlineReminders', () => {
   test('푸시 토큰이 없는 사용자는 제외된다', async () => {
     const now = new Date();
     const airdrop = await createAirdrop(18 * HOUR);
-    const noToken = await User.create({ username: 'remuser4' });
+    const noToken = await createTestUser({ username: 'remuser4' });
     await AirdropTracking.create({ user: noToken._id, airdrop: airdrop._id, watchlisted: true });
 
     const { sent, sendPush } = makeSendPush();
@@ -129,7 +142,7 @@ describe('runDeadlineReminders', () => {
   test('이미 마감된 에어드랍은 대상에서 제외', async () => {
     const now = new Date();
     const airdrop = await createAirdrop(-2 * HOUR); // 이미 마감
-    const user = await User.create({
+    const user = await createTestUser({
       username: 'remuser5',
       push_token: 'ExponentPushToken[dddddddddddddddddddddd]',
     });

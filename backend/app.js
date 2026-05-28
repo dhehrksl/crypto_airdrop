@@ -91,11 +91,6 @@ app.use('/api', (req, res, next) => {
   return generalLimiter(req, res, next);
 });
 
-// Passport
-const passport = require('passport');
-require('./config/passport-setup');
-app.use(passport.initialize());
-
 // 인증 미들웨어 require — 일부 엔드포인트가 라우터 모듈 등록 전에 직접 부착되므로 여기서.
 const _authMiddlewareEarly = require('./middleware/authMiddleware');
 const _adminMiddlewareEarly = require('./middleware/adminMiddleware');

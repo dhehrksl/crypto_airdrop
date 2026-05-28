@@ -102,7 +102,7 @@ const deleteAccount = async (req, res) => {
       { $pull: { participatedBy: userId } }
     );
 
-    // 2) 사용자 삭제 (push_token, googleId, password 모두 함께 제거)
+    // 2) 사용자 삭제 (push_token, password 모두 함께 제거)
     await User.deleteOne({ _id: userId });
 
     res.json({ ok: true, msg: '계정과 모든 개인정보가 삭제되었습니다.' });

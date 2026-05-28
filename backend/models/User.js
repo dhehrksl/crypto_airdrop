@@ -10,22 +10,14 @@ const userSchema = new mongoose.Schema({
   },
   email: {
     type: String,
+    required: true,
     unique: true,
-    sparse: true, // Allows multiple nulls, but unique if not null
     lowercase: true,
     trim: true,
   },
   password: {
     type: String,
-    // Not required for social login
-  },
-  googleId: {
-    type: String,
-    unique: true,
-    sparse: true, // Allows multiple nulls, but unique if not null
-  },
-  avatarUrl: {
-    type: String,
+    required: true,
   },
   push_token: {
     type: String,

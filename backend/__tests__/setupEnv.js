@@ -11,8 +11,6 @@ process.env.LOG_LEVEL = process.env.LOG_LEVEL || 'silent';
 process.env.JWT_SECRET =
   process.env.JWT_SECRET || 'test-only-secret-' + 'x'.repeat(40);
 process.env.JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1h';
-// Google OAuth는 단위 테스트에서 사용하지 않지만 OAuth2Client 생성자가 빈 string에서도 동작.
-process.env.GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || 'test-client-id';
 // scraper admin 인증 분기를 통합 테스트에서 검증하려면 토큰이 설정되어 있어야 한다
 // (값이 비어 있으면 requireAdminToken이 모든 요청을 통과시킴 — dev 편의 동작).
 process.env.SCRAPER_ADMIN_TOKEN =

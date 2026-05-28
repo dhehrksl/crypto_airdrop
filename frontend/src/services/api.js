@@ -163,10 +163,6 @@ export const register = (username, email, password) => {
   return apiClient.post('/api/auth/register', { username, email, password });
 };
 
-export const googleTokenSignIn = (idToken) => {
-  return apiClient.post('/api/auth/google/token-signin', { idToken });
-};
-
 // --- Market Data API Calls ---
 
 export const getMarketPrice = (coinId) => {

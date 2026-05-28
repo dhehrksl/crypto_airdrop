@@ -67,10 +67,6 @@ function runSecuritySelfCheck() {
     }
   }
 
-  if (isProd && process.env.GOOGLE_CLIENT_ID === 'dummy') {
-    warnings.push('GOOGLE_CLIENT_ID=dummy in production — Google 로그인 작동 안 함.');
-  }
-
   // 보안 자가진단은 logger require 전에 호출되므로 stderr 직접 출력.
   for (const w of warnings) process.stderr.write(`[보안 경고] ${w}\n`);
   for (const f of fatals) process.stderr.write(`[보안 치명적] ${f}\n`);
