@@ -7,6 +7,7 @@ const logger = require('../lib/logger');
 // expo-server-sdk v6는 ESM-only — sendPushNotifications 내부에서 dynamic import.
 const { isBlockedSource } = require('../config/blockedSources');
 const { fetchSnapshotProposals } = require('./snapshotSource');
+const { normalizeUrl } = require('../lib/normalizeUrl');
 // airdrops.io 스크래퍼는 ToS의 상업적 사용 금지 조항으로 제거됨.
 // 뉴스 기능도 제거됨 — RSS는 "에어드랍 발견" 용도로만 쓰고, 에어드랍이 아닌
 // 항목은 저장하지 않는다. 저장되는 Airdrop은 AI가 한국어로 재작성한 사실
@@ -158,13 +159,18 @@ async function fetchRealData() {
     }
     try {
       const feed = await parser.parseURL(source.url);
-      const items = feed.items.slice(0, 15).map(item => ({
-        id: String(item.guid || item.link),
-        title: item.title,
-        content: item.contentSnippet || item.content || "",
-        link: item.link,
-        sourceName: source.name
-      }));
+      const items = feed.items.slice(0, 15).map(item => {
+        // dedup 키는 정규화된 link 우선 — 같은 기사가 다른 매체 RSS에 잡혀도 한 번만 처리.
+        // RSS guid는 출처마다 형식이 달라 cross-source dedup이 안 된다.
+        const normalized = normalizeUrl(item.link);
+        return {
+          id: normalized || String(item.guid || item.link),
+          title: item.title,
+          content: item.contentSnippet || item.content || "",
+          link: item.link,
+          sourceName: source.name,
+        };
+      });
       allItems = [...allItems, ...items];
     } catch (error) {
       const reason = error.status ? `Status ${error.status}` : 'Fetch/Parse Error';
@@ -218,16 +224,27 @@ async function sendPushNotifications(airdrop) {
   }
 }
 
-const { GoogleGenerativeAI } = require('@google/generative-ai');
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite';
-const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
+// Gemini 호출은 multi-model fallback 클라이언트로 위임 — 한 모델 quota 소진 시 자동 전환.
+const geminiClient = require('./geminiClient');
 
 // 휴리스틱 점수 임계값
 // score < AI_THRESHOLD : AI 호출 안 함 → 저장하지 않음 (에어드랍 여부 신뢰성 있게 판별 불가)
 // score >= AI_THRESHOLD: AI 호출하여 정밀 분석 (배치 처리)
+//
+// scoring 모델 (evaluateNews):
+//   - title에 POSITIVE 1개 매치 → 10점
+//   - content에 POSITIVE 1개 매치 → 2점
+//   - title에 강한 키워드(airdrop/claim/snapshot/testnet) → +20점 (누적)
+//
+// THRESHOLD=7 의미:
+//   - title 약한 패턴 1개(10점) → 통과 (의도된 시그널)
+//   - content만 약한 패턴 3개(6점) → 컷 (시그널 약함 + AI quota 절약)
+//   - content만 약한 패턴 4개 이상(8점+) → 통과
+//
+// THRESHOLD=5 → 7 상향 이유: content-only weak match는 false positive 비율이 높아
+// AI 호출 비용 대비 가치가 낮음. title-driven 시그널은 그대로 유지.
 const SKIP_THRESHOLD = 0;
-const AI_THRESHOLD = 5;
+const AI_THRESHOLD = 7;
 const BATCH_SIZE = 20;
 
 // AI가 "활성 에어드랍"으로 분류했지만 사실은 이미 끝난 경우를 잡아내는 사후 검증.
@@ -458,7 +475,7 @@ async function runScraper() {
     let byIdx;
     try {
       aiCalls++;
-      const result = await model.generateContent(buildBatchPrompt(batch), {
+      const { result } = await geminiClient.generateContent(buildBatchPrompt(batch), {
         responseMimeType: 'application/json',
       });
       const response = await result.response;
@@ -504,7 +521,6 @@ module.exports = {
   shouldDemoteAirdrop,
   buildBatchPrompt,
   parseBatchResponse,
-  model,
   RSS_SOURCES,
   SKIP_THRESHOLD,
   AI_THRESHOLD,

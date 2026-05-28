@@ -9,15 +9,13 @@
 //   4) 관리자가 별도 화면에서 검토 후 Airdrop 컬렉션으로 승격
 
 const crypto = require('crypto');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
 const AirdropDraft = require('../../models/AirdropDraft');
 const Airdrop = require('../../models/Airdrop');
 const { isBlockedSource } = require('../config/blockedSources');
 const { isOfficialTelegramSource } = require('../config/officialTelegramChannels');
 const logger = require('../lib/logger');
+const geminiClient = require('./geminiClient');
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const GEMINI_MODEL = process.env.GEMINI_DRAFT_MODEL || process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite';
 // 호출 횟수 최소화 — 큰 batch + 긴 간격으로 quota 보존.
 // 분당 input token 한도(1M)에 안 닿도록 입력 길이도 절약(아래 buildPrompt).
 const BATCH_SIZE = 25;
@@ -36,17 +34,6 @@ function containsTradingKeyword(payload) {
     ...(Array.isArray(payload.tasks) ? payload.tasks : []),
   ];
   return TRADING_EXCLUSION_REGEX.test(parts.join('\n'));
-}
-
-let _model = null;
-function getModel() {
-  if (_model) return _model;
-  if (!GEMINI_API_KEY || GEMINI_API_KEY === 'YOUR_GEMINI_API_KEY_HERE') {
-    throw new Error('GEMINI_API_KEY not configured');
-  }
-  const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-  _model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
-  return _model;
 }
 
 function buildPrompt(batch) {
@@ -234,7 +221,6 @@ async function saveDraft(item, ai) {
 }
 
 async function extractAndSaveBatch(items) {
-  const model = getModel();
   const stats = { total: items.length, saved: 0, skipped: 0, errors: 0, aiCalls: 0, reasons: {} };
 
   for (let i = 0; i < items.length; i += BATCH_SIZE) {
@@ -242,7 +228,7 @@ async function extractAndSaveBatch(items) {
     let byIdx;
     try {
       stats.aiCalls++;
-      const result = await model.generateContent(buildPrompt(batch), {
+      const { result } = await geminiClient.generateContent(buildPrompt(batch), {
         responseMimeType: 'application/json',
       });
       byIdx = parseResponse((await result.response).text(), batch.length);
@@ -274,8 +260,7 @@ async function extractAndSaveBatch(items) {
 
 // 단일 아이템 (URL 붙여넣기) 즉시 처리
 async function extractSingle(item) {
-  const model = getModel();
-  const result = await model.generateContent(buildPrompt([item]), {
+  const { result } = await geminiClient.generateContent(buildPrompt([item]), {
     responseMimeType: 'application/json',
   });
   const byIdx = parseResponse((await result.response).text(), 1);

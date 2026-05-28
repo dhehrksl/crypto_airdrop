@@ -21,10 +21,10 @@ const {
   buildBatchPrompt,
   parseBatchResponse,
   shouldDemoteAirdrop,
-  model,
   AI_THRESHOLD,
   BATCH_SIZE,
 } = require('../../src/services/scraper');
+const geminiClient = require('../../src/services/geminiClient');
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -271,7 +271,7 @@ async function main() {
     try {
       aiCalls++;
       console.log(`  [batch ${aiCalls}] ${batch.length}건 → Gemini 호출`);
-      const result = await model.generateContent(buildBatchPrompt(batch), {
+      const { result } = await geminiClient.generateContent(buildBatchPrompt(batch), {
         responseMimeType: 'application/json',
       });
       const response = await result.response;
