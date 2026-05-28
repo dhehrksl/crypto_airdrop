@@ -111,5 +111,109 @@ console.log('\nshouldDemoteAirdrop()');
   expect(r.demote === false, 'aiResult null → 통과');
 }
 
+// 10. RETROSPECTIVE_TITLE — 가격 등락 회고 기사 (실제 잡혔던 사례)
+{
+  const r = shouldDemoteAirdrop(
+    { is_airdrop: true, end_date: null, title: 'ETHFI Value Drops By 35%' },
+    { title: 'ETHFI Value Drops By 35% After The Airdrop', content: '' }
+  );
+  expect(
+    r.demote === true && r.reason === 'retrospective_price_news',
+    'RETROSPECTIVE: "ETHFI Value Drops" → demote'
+  );
+}
+
+// 11. RETROSPECTIVE_TITLE — 시총 surge
+{
+  const r = shouldDemoteAirdrop(
+    { is_airdrop: true, end_date: null, title: 'X' },
+    { title: 'Wormhole Market Cap Surges After Token Launch', content: '' }
+  );
+  expect(
+    r.demote === true && r.reason === 'retrospective_price_news',
+    'RETROSPECTIVE: "Market Cap Surges" → demote'
+  );
+}
+
+// 12. RETROSPECTIVE_TITLE — 가격 plunge
+{
+  const r = shouldDemoteAirdrop(
+    { is_airdrop: true, end_date: null, title: 'X' },
+    { title: 'Arbitrum Price Plunges 20% in 24h', content: '' }
+  );
+  expect(
+    r.demote === true && r.reason === 'retrospective_price_news',
+    'RETROSPECTIVE: "Price Plunges" → demote'
+  );
+}
+
+// 13. POST_EVENT_TITLE — "after the airdrop"
+{
+  const r = shouldDemoteAirdrop(
+    { is_airdrop: true, end_date: null, title: 'X' },
+    { title: 'What Happens After the Airdrop?', content: '' }
+  );
+  expect(
+    r.demote === true && r.reason === 'retrospective_price_news',
+    'POST_EVENT: "after the airdrop" → demote'
+  );
+}
+
+// 14. POST_EVENT_TITLE — "post-airdrop"
+{
+  const r = shouldDemoteAirdrop(
+    { is_airdrop: true, end_date: null, title: 'X' },
+    { title: 'Post-Airdrop Market Analysis', content: '' }
+  );
+  expect(
+    r.demote === true && r.reason === 'retrospective_price_news',
+    'POST_EVENT: "post-airdrop" → demote'
+  );
+}
+
+// 15. POST_EVENT_TITLE — "market turbulence"
+{
+  const r = shouldDemoteAirdrop(
+    { is_airdrop: true, end_date: null, title: 'X' },
+    { title: 'Market Turbulence Hits New Tokens', content: '' }
+  );
+  expect(
+    r.demote === true && r.reason === 'retrospective_price_news',
+    'POST_EVENT: "market turbulence" → demote'
+  );
+}
+
+// 16. RETROSPECTIVE 패턴 흉내내지만 정상 — 가격 단어 없음
+{
+  const r = shouldDemoteAirdrop(
+    { is_airdrop: true, end_date: null, title: 'X' },
+    { title: 'New Airdrop Campaign Launches Today', content: '' }
+  );
+  expect(r.demote === false, '정상 캠페인 제목 → 통과 (false positive 없음)');
+}
+
+// 17. 본문에 가격 등락 있어도 제목 깨끗하면 통과 (본문 기반 매치 안 함)
+{
+  const r = shouldDemoteAirdrop(
+    { is_airdrop: true, end_date: null, title: 'X' },
+    { title: 'How to Participate in Pendle Campaign', content: 'PENDLE price dropped 10% last week' }
+  );
+  expect(r.demote === false, '제목 깨끗 + 본문에 가격 언급 → 통과');
+}
+
+// 18. end_date 미래라도 RETROSPECTIVE 제목이면? 우선순위 확인.
+//     현재 구현: end_date 미래면 그대로 통과 (retrospective 검사 안 함).
+//     의도된 동작 — end_date 검사가 최우선.
+{
+  const r = shouldDemoteAirdrop(
+    { is_airdrop: true, end_date: future, title: 'X' },
+    { title: 'ETH Price Drops After New Airdrop', content: '' }
+  );
+  expect(
+    r.demote === false,
+    'end_date 미래 + RETROSPECTIVE 제목 → 통과 (end_date 우선, 의도된 동작)'
+  );
+}
+
 console.log(`\n결과: ${passed} passed, ${failed} failed`);
 process.exit(failed > 0 ? 1 : 0);
