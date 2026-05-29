@@ -32,7 +32,6 @@ const RSS_SOURCES = [
   { name: 'Blog-Ethereum', url: 'https://blog.ethereum.org/feed.xml' },
   { name: 'Blog-Sui', url: 'https://blog.sui.io/rss/' },
   { name: 'Blog-EigenLayer', url: 'https://blog.eigenlayer.xyz/rss/' },
-  { name: 'Blog-Uniswap', url: 'https://blog.uniswap.org/rss.xml' },
   { name: 'Blog-Lido', url: 'https://blog.lido.fi/rss/' },
   { name: 'Blog-Polygon', url: 'https://polygon.technology/blog-rss.xml' },
   { name: 'Blog-zkSync', url: 'https://blog.zksync.io/rss/' },
@@ -49,7 +48,6 @@ const RSS_SOURCES = [
   { name: 'Forum-MakerDAO', url: 'https://forum.makerdao.com/latest.rss' },
   { name: 'Forum-Compound', url: 'https://www.comp.xyz/latest.rss' },
   { name: 'Forum-Polygon', url: 'https://forum.polygon.technology/latest.rss' },
-  { name: 'Forum-Uniswap', url: 'https://gov.uniswap.org/latest.rss' },
   { name: 'Forum-Lido', url: 'https://research.lido.fi/latest.rss' },
   { name: 'Forum-Berachain', url: 'https://forum.berachain.com/latest.rss' },
 
