@@ -226,6 +226,7 @@ async function sendPushNotifications(airdrop) {
 
 // Gemini 호출은 multi-model fallback 클라이언트로 위임 — 한 모델 quota 소진 시 자동 전환.
 const geminiClient = require('./geminiClient');
+const { isExhaustionError } = geminiClient;
 
 // 휴리스틱 점수 임계값
 // score < AI_THRESHOLD : AI 호출 안 함 → 저장하지 않음 (에어드랍 여부 신뢰성 있게 판별 불가)
@@ -483,7 +484,12 @@ async function runScraper() {
       if (i + BATCH_SIZE < aiCandidates.length) await sleep(5000);
     } catch (error) {
       logger.error({ err: error }, 'Gemini batch API failed');
-      // 배치 실패 → 이 묶음은 저장하지 않고 버린다 (다음 cron에서 재시도)
+      // 할당량 모두 소진 시 즉시 중단 (불필요한 대기/시도 방지)
+      if (isExhaustionError(error)) {
+        logger.error('[Scraper] Gemini quota exhausted — stopping early');
+        throw error; // 에러를 상위(scraperRunner)로 던져 상태에 기록되게 함
+      }
+      // 일반 에러 → 이 묶음은 저장하지 않고 버린다 (다음 cron에서 재시도)
       dropped += slice.length;
       continue;
     }

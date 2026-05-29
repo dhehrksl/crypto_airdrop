@@ -13,8 +13,9 @@ const AirdropDraft = require('../../models/AirdropDraft');
 const Airdrop = require('../../models/Airdrop');
 const { isBlockedSource } = require('../config/blockedSources');
 const { isOfficialTelegramSource } = require('../config/officialTelegramChannels');
-const logger = require('../lib/logger');
 const geminiClient = require('./geminiClient');
+const { isExhaustionError } = geminiClient;
+const logger = require('../lib/logger');
 
 // 호출 횟수 최소화 — 큰 batch + 긴 간격으로 quota 보존.
 // 분당 input token 한도(1M)에 안 닿도록 입력 길이도 절약(아래 buildPrompt).
@@ -234,6 +235,11 @@ async function extractAndSaveBatch(items) {
       byIdx = parseResponse((await result.response).text(), batch.length);
     } catch (e) {
       logger.error({ err: e }, '[Draft AI] batch failed');
+      // 할당량 모두 소진 시 즉시 중단
+      if (isExhaustionError(e)) {
+        logger.error('[Draft AI] Gemini quota exhausted — stopping early');
+        throw e;
+      }
       stats.errors += batch.length;
       continue;
     }

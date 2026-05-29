@@ -20,16 +20,22 @@ const logger = require('../lib/logger');
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
-// 무료 한도 큰 순서로 정렬 (2026-01 기준 — 실제 한도는 Google AI Studio 콘솔 확인).
-//   2.5-flash-lite : ~1000 RPD, 15 RPM
-//   2.0-flash-lite : ~1500 RPD, 30 RPM
-//   2.0-flash      : ~1500 RPD, 15 RPM
-//   2.5-flash      : ~250 RPD, 10 RPM (품질 백업)
+// 무료 한도 및 성능 최적화 순서 (2026-05 기준 — 최신 공식 문서 반영).
+// 2026년 4월 개편 이후 Flash-Lite 모델이 최우선 권장 모델입니다.
+//
+//   3.1-flash-lite : ~15 RPM, 1000 RPD (현재 주력 모델)
+//   3.1-flash      : ~10 RPM, 250 RPD
+//   2.5-flash-lite : ~15 RPM, 1000 RPD (안정적인 백업)
+//   2.5-flash      : ~10 RPM, 250 RPD
+//   2.0-flash-lite : (2026-06-01 지원 종료 예정 — 임시 백업)
+//   2.0-flash      : (2026-06-01 지원 종료 예정 — 임시 백업)
 const DEFAULT_MODELS = [
+  'gemini-3.1-flash-lite',
+  'gemini-3.1-flash',
   'gemini-2.5-flash-lite',
+  'gemini-2.5-flash',
   'gemini-2.0-flash-lite',
   'gemini-2.0-flash',
-  'gemini-2.5-flash',
 ];
 
 function parseModels() {
@@ -71,6 +77,13 @@ function isFallbackEligibleError(err) {
   return false;
 }
 
+/**
+ * 에러가 모든 Gemini 모델의 할당량 소진으로 인한 것인지 확인
+ */
+function isExhaustionError(err) {
+  return String(err?.message || '').includes('모든 Gemini 모델의 무료 할당량을 소진');
+}
+
 async function generateContent(prompt, requestOptions) {
   const models = parseModels();
   let lastError = null;
@@ -95,9 +108,14 @@ async function generateContent(prompt, requestOptions) {
       throw err;
     }
   }
-  const e = new Error(`All Gemini models exhausted (${models.join(', ')})`);
+  const e = new Error(`모든 Gemini 모델의 무료 할당량을 소진했습니다. (${models.join(', ')})`);
+  e.code = 'GEMINI_QUOTA_EXHAUSTED';
   e.cause = lastError;
   throw e;
 }
 
-module.exports = { generateContent, _internal: { isFallbackEligibleError, parseModels, DEFAULT_MODELS } };
+module.exports = { 
+  generateContent, 
+  isExhaustionError,
+  _internal: { isFallbackEligibleError, parseModels, DEFAULT_MODELS } 
+};

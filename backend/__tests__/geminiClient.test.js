@@ -85,7 +85,16 @@ describe('geminiClient.generateContent — fallback 동작', () => {
       .mockRejectedValueOnce(quotaError('429'))
       .mockRejectedValueOnce(quotaError('429'));
 
-    await expect(client.generateContent('prompt')).rejects.toThrow(/All Gemini models exhausted/);
+    const promise = client.generateContent('prompt');
+    await expect(promise).rejects.toThrow(/모든 Gemini 모델의 무료 할당량을 소진/);
+    
+    try {
+      await promise;
+    } catch (e) {
+      expect(client.isExhaustionError(e)).toBe(true);
+      expect(e.code).toBe('GEMINI_QUOTA_EXHAUSTED');
+    }
+    
     expect(mockGenerateContent).toHaveBeenCalledTimes(2);
   });
 
